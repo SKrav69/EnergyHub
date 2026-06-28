@@ -2,51 +2,85 @@
 
 ## What is EnergyHub?
 
-(2–3 речення)
+EnergyHub is an open-source operating system for autonomous homes.
+
+It transforms a collection of independent smart devices into one coordinated, intelligent system that continuously manages the home's energy ecosystem.
+
+The goal is not simply to automate devices.
+
+The goal is to reduce the cognitive load of home ownership.
 
 ---
 
-## Mission
+## Why EnergyHub Exists
 
-(1 речення)
+Modern homes are becoming increasingly complex.
 
----
+Every new smart device adds another application, another dashboard, another notification and another decision.
 
-## Vision
+EnergyHub exists to reverse that trend.
 
-(1 речення)
-
----
-
-## Core Promise
-
-Reduce the cognitive load of living in a modern smart home.
+Technology should simplify life—not make it more complicated.
 
 ---
 
-## Core Principle
+## Who Is EnergyHub For?
 
-We optimize for people, not for kilowatt-hours.
+### Homeowners
+
+People who want their home to manage itself rather than constantly adjusting settings.
+
+### Families
+
+Simple dashboards, understandable modes and clear notifications without technical complexity.
+
+### Installers
+
+A platform that is easy to deploy, configure and maintain.
+
+### Developers
+
+An open architecture that can be extended with new integrations, automations and optimization algorithms.
 
 ---
 
-## Design Philosophy
+## What Makes EnergyHub Different?
 
-(посилання на 02-Design-Philosophy.md)
+EnergyHub is built around a simple idea:
 
----
+> Every new feature should remove one more decision from the homeowner.
 
-## Development Principles
-
-(посилання на 03-Development-Principles.md)
+Instead of adding complexity, EnergyHub continuously reduces it.
 
 ---
 
-## Documentation Index
+## Product Pillars
 
-- Vision
-- Design Philosophy
-- Development Principles
-- Architecture
-- Roadmap
-- Backlog
+- Autonomous Home
+- Human-Centric Automation
+- Progressive Automation
+- Explainable Decisions
+- Local First
+- Vendor Independence
+- Calm Technology
+- Invisible Automation
+
+---
+
+## Current Status
+
+Foundation (v0.1)
+
+Current focus:
+
+- Documentation
+- Core architecture
+- PowMr integration
+- Home Assistant platform
+- GitHub repository
+
+---
+
+## Long-Term Goal
+
+Become the operating system for autonomous homes.

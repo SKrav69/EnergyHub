@@ -1,26 +1,77 @@
 ﻿# EnergyHub
 
-> Making Smart Homes Truly Autonomous
+> **The Operating System for Autonomous Homes**
 
-**EnergyHub** is an open-source Smart Home Energy Operating System built on top of Home Assistant.
+EnergyHub is an open-source operating system for autonomous homes.
 
-We optimize for people, not for kilowatt-hours.
+Its mission is to reduce the cognitive load of living in a modern smart home by automating routine decisions while maximizing comfort, resilience and energy efficiency.
 
-## Mission
+> **We optimize for people, not for kilowatt-hours.**
 
-EnergyHub helps modern smart homes become more autonomous, comfortable, efficient and resilient.
+---
 
-The system automates routine decisions, optimizes energy usage, manages smart devices and keeps the homeowner informed without requiring constant manual control.
+# Mission
 
-## Documentation
+Modern homes are becoming increasingly complex.
 
-- [Vision](docs/Vision.md)
-- [Roadmap](docs/Roadmap.md)
-- [Architecture](docs/Architecture.md)
-- [Backlog](docs/Backlog.md)
+Solar panels, batteries, dynamic tariffs, EV charging, heat pumps and smart devices should work together as one coordinated system.
 
-## Project Status
+EnergyHub makes that possible.
 
-Current phase: **v0.1 Foundation**
+The homeowner defines the desired behaviour once.
 
-The project is currently private and under active development.
+EnergyHub performs the routine work automatically.
+
+---
+
+# Key Principles
+
+- Human-Centric Design
+- Comfort Before Savings
+- Progressive Automation
+- Explainable Decisions
+- Local First
+- Vendor Independence
+- Calm Technology
+
+---
+
+# Documentation
+
+| Document | Description |
+|-----------|-------------|
+| 00 Manifesto | Why EnergyHub exists |
+| 01 Project | What EnergyHub is |
+| 02 Vision | Long-term vision |
+| 03 Design Philosophy | Product philosophy |
+| 04 Development Principles | Engineering principles |
+| 05 System Architecture | High-level architecture |
+| 06 Roadmap | Product evolution |
+| 07 Backlog | Planned work |
+| 08 Design Checklist | Feature review process |
+| 09 Decision Log | Architectural decisions |
+| 10 Developer Architecture | Internal software architecture |
+
+---
+
+# Current Status
+
+Current Stage:
+
+**v0.1 Foundation**
+
+Current focus:
+
+- Documentation
+- Repository
+- Architecture
+- PowMr integration
+- Home Assistant integration
+
+---
+
+# Vision
+
+People should not manage their home.
+
+Their home should manage itself.

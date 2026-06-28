@@ -1,113 +1,176 @@
 ﻿# EnergyHub Roadmap
 
-## v0.1 — Foundation
-
-### Goals
-
-- GitHub repository
-- Project structure
-- Development workflow
-- Vision
-- Documentation
-- Architecture
-- Backlog
+> Build the foundation first. Add intelligence second. Scale third.
 
 ---
 
-## v0.2 — PowMr Integration
+# v0.1 Foundation
 
-### Goals
+Goal:
 
-- MQTT Discovery
-- MQTT Publishing
-- Home Assistant integration
-- Dashboard
-- Historical charts
-- Energy statistics
-- Import / Export detection
-- Battery charge/discharge statistics
+Create a solid foundation for long-term development.
 
----
+Deliverables:
 
-## v0.3 — Home Automation
+* GitHub repository
+* Documentation
+* Project philosophy
+* System architecture
+* Home Assistant integration
+* PowMr communication
+* Repository structure
 
-### Goals
+Status:
 
-- Battery Lamp
-- Smart Lamp status effects
-- Summer Mode
-- Winter Mode
-- Away Mode
-- Panic Mode
-- Heat Pump automation
-- Smart Plug automation
-- Family Dashboard
-- Notifications
+In Progress
 
 ---
 
-## v0.4 — Battery Management
+# v0.2 Device Layer
 
-### Goals
+Goal:
 
-- JK BMS
-- Daly BMS
-- Cell voltages
-- Cell balancing
-- Battery health
-- SOC validation
-- Battery alerts
+Reliable communication with supported hardware.
 
----
+Deliverables:
 
-## v0.5 — Energy Optimization
-
-### Goals
-
-- Dynamic tariffs
-- Night charging
-- Adaptive charging current
-- Battery scheduling
-- Grid import optimization
-- Grid export optimization
-- Net Billing optimization
+* PowMr integration
+* MQTT communication
+* Device abstraction layer
+* Inverter control
+* Battery monitoring
+* Basic notifications
 
 ---
 
-## v0.6 — Electric Vehicles
+# v0.3 User Experience
 
-### Goals
+Goal:
 
-- Solar surplus charging
-- Scheduled charging
-- Dynamic charging power
-- Battery reserve logic
-- Trip preparation mode
+Create a simple experience for homeowners.
+
+Deliverables:
+
+* Family Dashboard
+* Engineering Dashboard
+* House status overview
+* Home modes
+* Push notifications
+
+Examples:
+
+Summer Mode
+
+Winter Mode
+
+Away Mode
+
+Panic Mode
 
 ---
 
-## v0.7 — Smart Home Platform
+# v0.4 Automation Engine
 
-### Goals
+Goal:
 
-- Heating
-- Cooling
-- Water heating
-- Ventilation
-- Lighting
-- Irrigation
-- Presence detection
-- Security integration
+Automate routine decisions.
+
+Deliverables:
+
+* Battery charging automation
+* Smart inverter modes
+* EV charging automation
+* Smart plug management
+* Heat pump automation
 
 ---
 
-## v1.0 — Public Release
+# v0.5 Forecasting
 
-### Goals
+Goal:
 
-- Stable architecture
-- Complete documentation
-- Installation guide
-- Configuration wizard
-- Public GitHub repository
-- Community release
+Predict future energy availability.
+
+Deliverables:
+
+* Weather forecast integration
+* Solar forecast
+* Consumption prediction
+* Battery prediction
+* Grid outage preparation
+
+---
+
+# v0.6 Energy Optimization
+
+Goal:
+
+Optimize the entire home energy ecosystem.
+
+Deliverables:
+
+* Dynamic tariffs
+* Net Billing optimization
+* Smart export
+* Smart charging
+* Battery reserve management
+
+---
+
+# v0.7 Autonomous Home
+
+Goal:
+
+Reduce homeowner interaction to a minimum.
+
+Deliverables:
+
+* Progressive Automation
+* Decision Engine
+* Explainable Decisions
+* Self-Healing
+* Automatic recovery
+
+---
+
+# v0.8 Platform
+
+Goal:
+
+Support multiple hardware vendors.
+
+Deliverables:
+
+* Additional inverter brands
+* Additional BMS vendors
+* EV chargers
+* Heat pumps
+* Matter support
+* Extended device ecosystem
+
+---
+
+# v1.0 EnergyHub
+
+Goal:
+
+The Operating System for Autonomous Homes.
+
+Characteristics:
+
+* Vendor independent
+* Hardware independent
+* Human-centric
+* Calm technology
+* Progressive automation
+* Local-first
+* Explainable
+* Self-healing
+
+Success is measured by one question:
+
+> How often does the homeowner need to think about the energy system?
+
+The ideal answer is:
+
+Almost never.
