@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Home Assistant secrets and local runtime files
+secrets.yaml
+known_devices.yaml
+home-assistant_v2.db
+home-assistant_v2.db-*
+*.storage
+.storage/
+.cloud/
+.google.token
+.uuid
+
+# Environment / credentials
+.env
+.env.*
+*.key
+*.pem
+*.crt
+
+# Local generated data
+powmr.json
+*.sqlite
+*.db
