@@ -1,0 +1,3 @@
+"""
+EnergyHub inverter state model.
+"""
