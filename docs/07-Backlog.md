@@ -53,6 +53,24 @@
 * Battery prediction
 * Consumption prediction
 
+Dashboard: Grid Availability & Grid Charging
+
+- Add grid availability sensor:
+  grid_available = ac_input_voltage > 180
+
+- Show grid availability on dashboard:
+  100% = grid available
+  0% = grid unavailable
+
+- Add daily / weekly statistics:
+  grid charging energy
+  grid charging during Winter Mode
+  grid charging during Panic Mode
+  night tariff charging amount
+
+- Show this on Engineering Dashboard first.
+- Later simplify for Family Dashboard.
+
 ---
 
 ## Electric Vehicle

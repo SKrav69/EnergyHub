@@ -1,0 +1,36 @@
+name: Energy Hub
+version: "1.0.0"
+slug: energy_hub
+description: Home Energy Hub for PowMr, JK BMS, EV and future automations
+arch:
+  - aarch64
+startup: services
+boot: auto
+init: false
+hassio_api: false
+homeassistant_api: false
+host_network: false
+devices:
+  - /dev/ttyUSB0:/dev/ttyUSB0:rwm
+options:
+  powmr_enabled: true
+  mqtt_host: core-mosquitto
+  mqtt_port: 1883
+  mqtt_user: mqtt_powmr
+  mqtt_password: mqtt_powmr
+  serial_port: /dev/ttyUSB0
+  protocol: PI30MAX
+  command: QPIGS
+  poll_interval: 10
+  device_name: PowMr 10.2M
+schema:
+  powmr_enabled: bool
+  mqtt_host: str
+  mqtt_port: int
+  mqtt_user: str
+  mqtt_password: password
+  serial_port: str
+  protocol: str
+  command: str
+  poll_interval: int
+  device_name: str
