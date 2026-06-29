@@ -75,3 +75,15 @@ Current focus:
 People should not manage their home.
 
 Their home should manage itself.
+
+Repository:
+https://github.com/SKrav69/EnergyHub
+
+Main branch:
+main
+
+Documentation:
+docs/
+
+Home Assistant add-on:
+addon/
