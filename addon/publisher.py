@@ -5,26 +5,10 @@ import subprocess
 import time
 import traceback
 
+from app.adapters.powmr import PowMrLocalAdapter
 from app.config import AVAILABILITY_TOPIC, LAST_FILE, load_options
 from app.mqtt.publisher import make_client, publish_discovery, publish_values
 from app.utils.logger import log
-
-
-def read_inverter(options):
-    cmd = [
-        "mpp-solar",
-        "-p",
-        options["serial_port"],
-        "-P",
-        options["protocol"],
-        "-c",
-        options["command"],
-        "-o",
-        "json",
-    ]
-
-    output = subprocess.check_output(cmd, text=True, timeout=25)
-    return json.loads(output)
 
 
 def main():
@@ -41,6 +25,7 @@ def main():
     log(f"Protocol: {options['protocol']}")
     log(f"Poll interval: {options['poll_interval']} sec")
 
+    inverter = PowMrLocalAdapter(options)
     client = make_client(options)
 
     while True:
@@ -61,7 +46,7 @@ def main():
 
     while True:
         try:
-            data = read_inverter(options)
+            data = inverter.read_telemetry()
 
             published = publish_values(client, data, previous)
             previous.update(data)
