@@ -8,10 +8,7 @@ import traceback
 import paho.mqtt.client as mqtt
 
 from app.config import AVAILABILITY_TOPIC, BASE_TOPIC, LAST_FILE, SENSORS, load_options
-
-
-def log(message):
-    print(f"[Energy Hub] {message}", flush=True)
+from app.utils.logger import log
 
 
 def make_client(options):
