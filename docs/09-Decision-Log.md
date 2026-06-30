@@ -155,3 +155,6 @@ Reason
 Architecture, philosophy and engineering decisions should survive multiple generations of code.
 
 The Knowledge Base is maintained with the same discipline as the source code.
+
+new idea
+Communication failures must be explicit. Silent failures are unacceptable. - error handling inside the code
