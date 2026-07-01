@@ -27,3 +27,5 @@ class TelemetryService:
             f"Grid={'online' if state.is_grid_available else 'offline'} | "
             f"Published={published}"
         )
+
+        return state
