@@ -11,6 +11,7 @@ from app.services.grid_stability import GridStabilityEngine
 from app.services.telemetry import TelemetryService
 from app.services.watchdog import CommunicationWatchdog
 from app.utils.logger import log
+from app.services.event_bus import EventBus
 
 
 def main():
@@ -34,6 +35,7 @@ def main():
     grid = GridMonitor()
     history = GridHistoryService()
     stability = GridStabilityEngine(history)
+    bus = EventBus()
 
     while True:
         try:
