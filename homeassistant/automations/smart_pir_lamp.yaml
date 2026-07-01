@@ -1,0 +1,97 @@
+alias: Battery Lamp Dynamic Status
+description: Battery lamp indicates SOC and grid status
+triggers:
+  - trigger: state
+    entity_id: sensor.powmr_10_2m_battery_soc
+  - trigger: state
+    entity_id: sensor.powmr_10_2m_grid_voltage
+  - trigger: homeassistant
+    event: start
+actions:
+  - variables:
+      soc: "{{ states('sensor.powmr_10_2m_battery_soc') | float(-1) }}"
+      grid_voltage: "{{ states('sensor.powmr_10_2m_grid_voltage') | float(0) }}"
+      grid_ok: "{{ grid_voltage > 50 }}"
+      lamp_color: >
+        {% if soc >= 95 %} [0, 80, 255] {% elif soc >= 80 %} [0, 255, 0] {% elif
+        soc >= 50 %} [255, 220, 0] {% elif soc >= 30 %} [255, 80, 0] {% else %}
+        [128, 0, 32] {% endif %}
+  - condition: template
+    value_template: "{{ soc > 0 }}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ soc <= 30 }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: >-
+                    {{ states('sensor.powmr_10_2m_battery_soc') | float(100) <=
+                    30 }}
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: light.colorful_pir_night_light
+                  data:
+                    brightness_pct: 80
+                    rgb_color: "{{ lamp_color }}"
+                - delay: "00:00:03"
+                - action: light.turn_off
+                  target:
+                    entity_id: light.colorful_pir_night_light
+                - delay: "00:00:01"
+      - conditions:
+          - condition: template
+            value_template: "{{ not grid_ok }}"
+        sequence:
+          - repeat:
+              while:
+                - condition: template
+                  value_template: >-
+                    {{ states('sensor.powmr_10_2m_grid_voltage') | float(0) < 50
+                    }}
+              sequence:
+                - action: light.turn_on
+                  target:
+                    entity_id: light.colorful_pir_night_light
+                  data:
+                    brightness_pct: 20
+                    rgb_color: "{{ lamp_color }}"
+                - delay: "00:00:02"
+                - action: light.turn_on
+                  target:
+                    entity_id: light.colorful_pir_night_light
+                  data:
+                    brightness_pct: 50
+                    rgb_color: "{{ lamp_color }}"
+                - delay: "00:00:02"
+                - action: light.turn_on
+                  target:
+                    entity_id: light.colorful_pir_night_light
+                  data:
+                    brightness_pct: 80
+                    rgb_color: "{{ lamp_color }}"
+                - delay: "00:00:02"
+                - action: light.turn_on
+                  target:
+                    entity_id: light.colorful_pir_night_light
+                  data:
+                    brightness_pct: 50
+                    rgb_color: "{{ lamp_color }}"
+                - delay: "00:00:02"
+                - action: light.turn_on
+                  target:
+                    entity_id: light.colorful_pir_night_light
+                  data:
+                    brightness_pct: 20
+                    rgb_color: "{{ lamp_color }}"
+                - delay: "00:00:02"
+    default:
+      - action: light.turn_on
+        target:
+          entity_id: light.colorful_pir_night_light
+        data:
+          brightness_pct: 50
+          rgb_color: "{{ lamp_color }}"
+mode: restart

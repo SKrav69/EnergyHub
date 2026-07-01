@@ -1,0 +1,62 @@
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Inverter Health (24h)
+  show_states: true
+  colorize_states: true
+graph_span: 24h
+update_interval: 60s
+apex_config:
+  stroke:
+    curve: smooth
+  xaxis:
+    type: datetime
+    labels:
+      format: HH:mm
+series:
+  - entity: sensor.powmr_10_2m_load
+    name: Inverter Load
+    type: line
+    yaxis_id: load
+    color: "#9c27b0"
+    stroke_width: 2
+    float_precision: 0
+    group_by:
+      func: avg
+      duration: 5min
+  - entity: sensor.powmr_10_2m_temperature
+    name: Inverter Temperature
+    type: line
+    yaxis_id: temperature
+    color: "#e53935"
+    stroke_width: 2
+    float_precision: 1
+    group_by:
+      func: avg
+      duration: 5min
+yaxis:
+  - id: load
+    min: 0
+    max: 100
+    decimals: 0
+    apex_config:
+      title:
+        text: Load (%)
+        style:
+          color: "#9c27b0"
+      labels:
+        style:
+          colors: "#9c27b0"
+  - id: temperature
+    opposite: true
+    min: 20
+    max: 80
+    decimals: 0
+    apex_config:
+      title:
+        text: Temperature (°C)
+        style:
+          color: "#e53935"
+      labels:
+        style:
+          colors: "#e53935"

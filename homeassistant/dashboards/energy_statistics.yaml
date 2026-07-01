@@ -1,0 +1,64 @@
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Solar Overview (24h)
+  show_states: true
+  colorize_states: true
+graph_span: 24h
+update_interval: 60s
+apex_config:
+  stroke:
+    curve: smooth
+  xaxis:
+    type: datetime
+    labels:
+      format: HH:mm
+series:
+  - entity: sensor.powmr_10_2m_pv1_power
+    name: Solar PV
+    type: line
+    yaxis_id: power
+    stroke_width: 1
+    float_precision: 0
+    group_by:
+      func: avg
+      duration: 5min
+  - entity: sensor.powmr_10_2m_output_power
+    name: House Load
+    type: line
+    yaxis_id: power
+    stroke_width: 1
+    float_precision: 0
+    group_by:
+      func: avg
+      duration: 5min
+  - entity: sensor.powmr_10_2m_battery_soc
+    name: Battery SOC
+    type: line
+    yaxis_id: soc
+    stroke_width: 3
+    color: "#00ff88"
+    float_precision: 0
+    group_by:
+      func: last
+      duration: 5min
+yaxis:
+  - id: power
+    min: 0
+    decimals: 0
+    apex_config:
+      title:
+        text: Power (W)
+  - id: soc
+    opposite: true
+    min: 0
+    max: 100
+    decimals: 0
+    apex_config:
+      title:
+        text: Battery SOC (%)
+        style:
+          color: "#00ff88"
+      labels:
+        style:
+          colors: "#00ff88"

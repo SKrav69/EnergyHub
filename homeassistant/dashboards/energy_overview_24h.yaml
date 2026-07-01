@@ -1,0 +1,49 @@
+type: custom:apexcharts-card
+header:
+  show: true
+  title: Energy Statistics (7 days)
+  show_states: true
+  colorize_states: true
+graph_span: 7d
+span:
+  end: day
+apex_config:
+  chart:
+    type: bar
+    height: 350
+  plotOptions:
+    bar:
+      columnWidth: 55%
+  legend:
+    show: true
+series:
+  - entity: sensor.powmr_10_2m_daily_pv_generation
+    name: PV Generation
+    type: column
+    color: "#e67e22"
+    float_precision: 1
+    group_by:
+      func: max
+      duration: 1d
+  - entity: sensor.powmr_10_2m_daily_house_consumption
+    name: House Consumption
+    type: column
+    color: "#2980b9"
+    float_precision: 1
+    group_by:
+      func: max
+      duration: 1d
+  - entity: sensor.solcast_pv_forecast_forecast_today
+    name: ☀️ Forecast Today
+    color: "#f1c40f"
+    float_precision: 1
+    show:
+      in_chart: false
+      in_header: true
+  - entity: sensor.solcast_pv_forecast_forecast_tomorrow
+    name: ☀️ Forecast Tomorrow
+    color: "#f39c12"
+    float_precision: 1
+    show:
+      in_chart: false
+      in_header: true

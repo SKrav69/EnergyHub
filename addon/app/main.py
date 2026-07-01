@@ -36,8 +36,8 @@ def main():
     grid = GridMonitor()
     history = GridHistoryService()
     stability = GridStabilityEngine(history)
-    bus = EventBus()
 
+    bus = EventBus()
     bus.subscribe(grid.handle_inverter_state)
 
     while True:
