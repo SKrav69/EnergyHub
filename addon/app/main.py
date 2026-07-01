@@ -6,6 +6,7 @@ from app.adapters.powmr import PowMrLocalAdapter
 from app.config import AVAILABILITY_TOPIC, load_options
 from app.mqtt.publisher import make_client, publish_discovery
 from app.services.telemetry import TelemetryService
+from app.services.watchdog import CommunicationWatchdog
 from app.utils.logger import log
 
 
@@ -26,6 +27,7 @@ def main():
     inverter = PowMrLocalAdapter(options)
     client = make_client(options)
     telemetry = TelemetryService(client)
+    watchdog = CommunicationWatchdog()
 
     while True:
         try:
@@ -44,15 +46,32 @@ def main():
     while True:
         try:
             data = inverter.read_telemetry()
+
+            watchdog.success()
+
             telemetry.process(data)
 
         except subprocess.TimeoutExpired:
+            watchdog.failure()
+
             log("ERROR: mpp-solar timeout")
+            log(
+                f"Communication state: {watchdog.state()} "
+                f"(errors={watchdog.consecutive_errors})"
+            )
+
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
         except Exception:
+            watchdog.failure()
+
             log("ERROR:")
             log(traceback.format_exc())
+            log(
+                f"Communication state: {watchdog.state()} "
+                f"(errors={watchdog.consecutive_errors})"
+            )
+
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
         time.sleep(int(options["poll_interval"]))
