@@ -5,13 +5,13 @@ import traceback
 from app.adapters.powmr import PowMrLocalAdapter
 from app.config import AVAILABILITY_TOPIC, load_options
 from app.mqtt.publisher import make_client, publish_discovery
+from app.services.event_bus import EventBus
 from app.services.grid_history import GridHistoryService
 from app.services.grid_monitor import GridMonitor
 from app.services.grid_stability import GridStabilityEngine
 from app.services.telemetry import TelemetryService
 from app.services.watchdog import CommunicationWatchdog
 from app.utils.logger import log
-from app.services.event_bus import EventBus
 
 
 def main():
@@ -30,12 +30,15 @@ def main():
 
     inverter = PowMrLocalAdapter(options)
     client = make_client(options)
+
     telemetry = TelemetryService(client)
     watchdog = CommunicationWatchdog()
     grid = GridMonitor()
     history = GridHistoryService()
     stability = GridStabilityEngine(history)
     bus = EventBus()
+
+    bus.subscribe(grid.handle_inverter_state)
 
     while True:
         try:
@@ -58,7 +61,9 @@ def main():
             watchdog.success()
 
             state = telemetry.process(data)
-            grid.update(state)
+
+            bus.publish(state)
+
             history.update(grid.is_available)
 
             log(f"Grid stability: {stability.level()}")

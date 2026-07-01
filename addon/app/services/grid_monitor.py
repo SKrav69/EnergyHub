@@ -5,7 +5,7 @@ class GridMonitor:
     def __init__(self):
         self.grid_available = False
 
-    def update(self, state: InverterState):
+    def handle_inverter_state(self, state: InverterState):
         self.grid_available = state.is_grid_available
 
     @property
