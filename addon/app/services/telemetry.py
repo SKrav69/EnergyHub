@@ -1,6 +1,7 @@
 import json
 
 from app.config import LAST_FILE
+from app.models.inverter_state import InverterState
 from app.mqtt.publisher import publish_values
 from app.utils.logger import log
 
@@ -11,6 +12,8 @@ class TelemetryService:
         self.previous = {}
 
     def process(self, data):
+        state = InverterState(data)
+
         published = publish_values(self.mqtt_client, data, self.previous)
         self.previous.update(data)
 
@@ -18,8 +21,9 @@ class TelemetryService:
 
         log(
             "OK | "
-            f"SOC={data.get('battery_capacity')}% | "
-            f"PV1={data.get('pv1_charging_power')}W | "
-            f"Load={data.get('ac_output_active_power')}W | "
+            f"SOC={state.battery_soc}% | "
+            f"PV1={state.pv1_power}W | "
+            f"Load={state.house_load}W | "
+            f"Grid={'online' if state.is_grid_available else 'offline'} | "
             f"Published={published}"
         )
