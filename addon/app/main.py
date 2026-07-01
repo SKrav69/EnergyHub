@@ -5,6 +5,7 @@ import traceback
 from app.adapters.powmr import PowMrLocalAdapter
 from app.config import AVAILABILITY_TOPIC, load_options
 from app.mqtt.publisher import make_client, publish_discovery
+from app.services.grid_history import GridHistoryService
 from app.services.grid_monitor import GridMonitor
 from app.services.telemetry import TelemetryService
 from app.services.watchdog import CommunicationWatchdog
@@ -30,6 +31,7 @@ def main():
     telemetry = TelemetryService(client)
     watchdog = CommunicationWatchdog()
     grid = GridMonitor()
+    history = GridHistoryService()
 
     while True:
         try:
@@ -53,6 +55,7 @@ def main():
 
             state = telemetry.process(data)
             grid.update(state)
+            history.update(grid.is_available)
 
         except subprocess.TimeoutExpired:
             watchdog.failure()
