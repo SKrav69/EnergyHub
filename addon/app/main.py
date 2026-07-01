@@ -1,11 +1,11 @@
-import json
 import subprocess
 import time
 import traceback
 
 from app.adapters.powmr import PowMrLocalAdapter
-from app.config import AVAILABILITY_TOPIC, LAST_FILE, load_options
-from app.mqtt.publisher import make_client, publish_discovery, publish_values
+from app.config import AVAILABILITY_TOPIC, load_options
+from app.mqtt.publisher import make_client, publish_discovery
+from app.services.telemetry import TelemetryService
 from app.utils.logger import log
 
 
@@ -25,6 +25,7 @@ def main():
 
     inverter = PowMrLocalAdapter(options)
     client = make_client(options)
+    telemetry = TelemetryService(client)
 
     while True:
         try:
@@ -40,24 +41,10 @@ def main():
     publish_discovery(client, options["device_name"])
     client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
-    previous = {}
-
     while True:
         try:
             data = inverter.read_telemetry()
-
-            published = publish_values(client, data, previous)
-            previous.update(data)
-
-            LAST_FILE.write_text(json.dumps(data, ensure_ascii=False))
-
-            log(
-                "OK | "
-                f"SOC={data.get('battery_capacity')}% | "
-                f"PV1={data.get('pv1_charging_power')}W | "
-                f"Load={data.get('ac_output_active_power')}W | "
-                f"Published={published}"
-            )
+            telemetry.process(data)
 
         except subprocess.TimeoutExpired:
             log("ERROR: mpp-solar timeout")
