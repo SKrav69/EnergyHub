@@ -33,15 +33,11 @@ This separation allows EnergyHub to remain modular, maintainable and vendor-inde
 
                 EnergyHub Core
 
-         Decision Engine
-
-         Automation Engine
-
-         Notification Engine
-
-         Forecast Engine
-
-         Device Manager
+      Decision Engine
+      Automation Engine
+      Notification Engine
+      Forecast Engine
+      Device Manager
 
 ────────────────────────────────────────
 
@@ -62,16 +58,67 @@ This separation allows EnergyHub to remain modular, maintainable and vendor-inde
 
 ---
 
+# Current EnergyHub Core
+
+The current implementation is built around small independent services.
+
+```
+                    PowMr Local Adapter
+                            │
+                            ▼
+                     InverterState
+                            │
+                            ▼
+                       Event Bus
+                            │
+          ┌─────────────────┴─────────────────┐
+          ▼                                   ▼
+  TelemetryService                    GridMonitor
+                                              │
+                                              ▼
+                                     GridHistoryService
+                                              │
+                                              ▼
+                                   Grid Confidence Engine
+                                              │
+                                              ▼
+                                      Decision Engine
+                                              │
+                                              ▼
+                                     Automation Engine
+```
+
+Current implemented services:
+
+- PowMr Local Adapter
+- InverterState
+- Event Bus
+- Telemetry Service
+- Communication Watchdog
+- Grid Monitor
+- Grid History Service
+- Grid Confidence Engine (initial implementation)
+
+Future services:
+
+- Decision Engine
+- Automation Engine
+- Forecast Engine
+- Notification Engine
+- Device Manager
+
+---
+
 # Layer 1 — User Experience
 
 The homeowner interacts with simple concepts.
 
 Examples:
 
-* Summer Mode
-* Winter Mode
-* Away Mode
-* Panic Mode
+- Summer Mode
+- Winter Mode
+- Away Mode
+- Panic Mode
 
 Users should never need to understand inverter commands, MQTT topics or hardware protocols.
 
@@ -81,27 +128,17 @@ Users should never need to understand inverter commands, MQTT topics or hardware
 
 This layer contains all business logic.
 
-Examples:
+Responsibilities include:
 
-Decision Engine
+- Energy management decisions
+- Automation execution
+- Grid confidence evaluation
+- Forecast processing
+- Notification delivery
+- Device abstraction
+- Strategy selection
 
-Makes energy management decisions.
-
-Automation Engine
-
-Executes actions.
-
-Forecast Engine
-
-Uses weather forecasts and historical data.
-
-Notification Engine
-
-Communicates important events.
-
-Device Manager
-
-Provides a unified interface to all supported devices.
+The EnergyHub Core remains independent from specific hardware vendors.
 
 ---
 
@@ -111,11 +148,11 @@ Home Assistant acts as the integration platform.
 
 It provides:
 
-* Entity model
-* Automation framework
-* MQTT integration
-* Dashboard infrastructure
-* Device discovery
+- Entity model
+- Automation framework
+- MQTT integration
+- Dashboard infrastructure
+- Device discovery
 
 EnergyHub extends Home Assistant rather than replacing it.
 
@@ -123,16 +160,16 @@ EnergyHub extends Home Assistant rather than replacing it.
 
 # Layer 4 — Communication
 
-Communication should remain independent from business logic.
+Communication remains independent from business logic.
 
 Supported technologies include:
 
-* MQTT
-* Modbus
-* Bluetooth
-* REST APIs
-* Matter
-* Zigbee
+- MQTT
+- Modbus
+- Bluetooth
+- REST APIs
+- Matter
+- Zigbee
 
 New protocols should be added without changing the upper layers.
 
@@ -144,13 +181,13 @@ Devices represent the physical infrastructure.
 
 Examples include:
 
-* Inverters
-* Batteries
-* Solar controllers
-* EV chargers
-* Heat pumps
-* Smart plugs
-* Sensors
+- Inverters
+- Batteries
+- Solar controllers
+- EV chargers
+- Heat pumps
+- Smart plugs
+- Sensors
 
 Devices should be replaceable without affecting the EnergyHub Core.
 
@@ -163,7 +200,7 @@ Business logic must never depend directly on hardware.
 Instead of:
 
 ```
-POP02
+PCP03
 ```
 
 EnergyHub uses:
@@ -176,16 +213,99 @@ Hardware adapters translate generic commands into vendor-specific implementation
 
 ---
 
+# Design Philosophy
+
+EnergyHub is designed around **capabilities**, not devices.
+
+The Decision Engine should never know whether a heat pump is controlled by:
+
+- Xiaomi
+- Shelly
+- Zigbee
+- Matter
+
+Instead, it operates on abstract capabilities such as:
+
+- House Heating
+- Battery Charging
+- EV Charging
+- Grid Supply
+- Solar Generation
+
+Hardware adapters translate these capabilities into device-specific implementations.
+
+This abstraction allows hardware to evolve without changing the EnergyHub decision logic.
+
+---
+
+# Mode Ownership
+
+EnergyHub automatically manages normal operating modes.
+
+```
+Summer
+Owner: EnergyHub
+
+Winter
+Owner: EnergyHub
+
+Away
+Owner: EnergyHub
+```
+
+Panic Mode is treated differently.
+
+If Panic Mode is activated manually:
+
+```
+Owner: User
+```
+
+EnergyHub remains in Panic Mode until the user manually selects another mode.
+
+During this period EnergyHub only provides recommendations.
+
+If Panic Mode is activated automatically by EnergyHub:
+
+```
+Owner: EnergyHub
+```
+
+EnergyHub may automatically return to another operating mode according to its decision logic.
+
+This guarantees that manual emergency decisions always take priority over automatic optimization.
+
+---
+
 # Future Architecture
 
 Current implementation focuses on Home Assistant.
 
 Future versions may support additional backends while preserving the same EnergyHub Core.
 
-The platform should remain independent from any single home automation ecosystem.
+Planned future integrations include:
+
+- PowMr Cloud Adapter
+- JK BMS
+- Smart meters
+- Solcast
+- Weather forecasts
+- Dynamic electricity pricing
+- Net Billing
+- EV charging management
 
 ---
 
 # Architectural Goal
 
 EnergyHub should become the operating system layer that transforms independent smart devices into one autonomous home.
+
+The long-term objective is an autonomous energy management platform capable of optimizing:
+
+- Energy resilience
+- Household comfort
+- Operating costs
+- Renewable energy utilization
+- Future Net Billing profitability
+
+while remaining independent from any particular hardware vendor or home automation platform.

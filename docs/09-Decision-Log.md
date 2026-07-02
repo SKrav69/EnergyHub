@@ -1,160 +1,366 @@
 # EnergyHub Decision Log
 
-> Important architectural and product decisions are documented here.
+This document records the major architectural and design decisions made during the EnergyHub project.
 
-This document explains why significant decisions were made.
-
-Future contributors—including ourselves—should be able to understand the reasoning behind the platform.
+The purpose is not to document implementation details, but to explain **why** specific decisions were made.
 
 ---
 
-# 2026-06-27
+# Decision 001
 
-## Repository Philosophy
+## Home Assistant is the automation platform
 
-Decision
+### Decision
 
-GitHub becomes the single source of truth.
+EnergyHub uses Home Assistant as its primary automation platform.
 
-Reason
+### Reason
 
-Documentation, architecture and production code should always remain synchronized.
+Home Assistant already provides:
 
----
+- MQTT integration
+- Dashboards
+- Device discovery
+- Automations
+- Large integration ecosystem
 
-## Documentation Before Code
-
-Decision
-
-Every significant feature starts with discussion and documentation before implementation.
-
-Reason
-
-Good architecture prevents technical debt and improves long-term maintainability.
+EnergyHub focuses on energy intelligence rather than replacing Home Assistant.
 
 ---
 
-## Human-Centric Design
+# Decision 002
 
-Decision
+## Prefer local communication
 
-EnergyHub optimizes for people rather than kilowatt-hours.
+### Decision
 
-Reason
+Whenever possible, EnergyHub communicates with devices locally.
 
-The goal is not maximum efficiency.
+### Reason
 
-The goal is maximum comfort, simplicity and peace of mind.
+The system must continue operating during:
 
----
+- Internet outages
+- Cloud service failures
+- Vendor service interruptions
 
-## Autonomous Home
+Local control is considered the primary implementation.
 
-Decision
-
-EnergyHub is positioned as the Operating System for Autonomous Homes.
-
-Reason
-
-The project extends beyond energy management.
-
-Its purpose is to coordinate the entire smart home ecosystem.
+Cloud integrations may be added as optional adapters.
 
 ---
 
-## Home Assistant
+# Decision 003
 
-Decision
+## PI30MAX is the primary PowMr interface
 
-Home Assistant is infrastructure—not the product.
+### Decision
 
-Reason
+The first EnergyHub implementation uses the local PI30MAX protocol.
 
-EnergyHub should remain independent from the underlying home automation platform.
+### Reason
 
-Future versions may support additional backends.
+PI30MAX provides reliable access to:
 
----
+- Battery SOC
+- Grid voltage
+- Output power
+- Charging configuration
+- Operating modes
+- Warning information
 
-## Progressive Automation
-
-Decision
-
-Automation should be introduced gradually.
-
-Reason
-
-Users build trust over time.
-
-The homeowner always decides how much control to delegate.
+Although some inverter information is unavailable through PI30MAX, it is sufficient for reliable autonomous energy management.
 
 ---
 
-## Calm Technology
+# Decision 004
 
-Decision
+## Separate business logic from hardware
 
-Silence is considered a feature.
+### Decision
 
-Reason
+Business logic must never communicate directly with hardware.
 
-Technology should reduce mental effort instead of constantly demanding attention.
+### Reason
 
----
+Hardware changes.
 
-## Modular Architecture
+Business rules should not.
 
-Decision
+Instead of vendor-specific commands such as:
 
-Business logic must remain independent from hardware.
+```
+PCP03
+```
 
-Reason
+EnergyHub uses:
 
-Hardware changes over time.
+```
+set_mode("panic")
+```
 
-EnergyHub should continue working regardless of the specific inverter, battery or communication protocol.
-
----
-
-## BMS Integration
-
-Decision
-
-Postpone Bluetooth BMS integration.
-
-Reason
-
-Current inverter telemetry already provides sufficient information for the Foundation stage.
-
-The architecture already supports adding BMS support later.
+Hardware adapters perform the protocol translation.
 
 ---
 
-## Repository Content
+# Decision 005
 
-Decision
+## EnergyHub operates on capabilities
 
-Only production-quality code belongs in the main repository.
+### Decision
 
-Reason
+EnergyHub works with abstract capabilities instead of specific devices.
 
-Experimental research should not increase repository complexity.
+### Examples
 
-Useful experiments become documented examples before entering the repository.
+Instead of:
+
+- Xiaomi Plug
+- Shelly Relay
+- PowMr Command
+
+EnergyHub uses:
+
+- House Heating
+- EV Charging
+- Battery Charging
+- Grid Supply
+- Solar Generation
+
+### Reason
+
+Devices may change.
+
+Capabilities remain constant.
 
 ---
 
-## Knowledge Base
+# Decision 006
 
-Decision
+## Grid Confidence replaces Grid Stability
 
-Documentation is treated as part of the product.
+### Decision
 
-Reason
+EnergyHub evaluates **Grid Confidence** rather than Grid Stability.
 
-Architecture, philosophy and engineering decisions should survive multiple generations of code.
+### Reason
 
-The Knowledge Base is maintained with the same discipline as the source code.
+The objective is not to measure the electrical grid.
 
-new idea
-Communication failures must be explicit. Silent failures are unacceptable. - error handling inside the code
+The objective is to estimate how much EnergyHub should trust the grid when making energy management decisions.
+
+Future Grid Confidence may include:
+
+- Recent availability
+- Weather forecast
+- Planned outages
+- Historical reliability
+
+---
+
+# Decision 007
+
+## Automatic operating modes
+
+### Decision
+
+EnergyHub may automatically switch between:
+
+- Summer
+- Winter
+- Away
+
+### Reason
+
+These represent normal operating conditions and should not require daily user interaction.
+
+---
+
+# Decision 008
+
+## Manual Panic Mode has priority
+
+### Decision
+
+If Panic Mode is activated manually, EnergyHub must never leave Panic Mode automatically.
+
+### Reason
+
+Manual Panic Mode indicates that the user has additional information unavailable to EnergyHub.
+
+Examples:
+
+- Expected missile attacks
+- User preference
+- Special household requirements
+
+During Manual Panic Mode, EnergyHub only provides recommendations.
+
+---
+
+# Decision 009
+
+## Automatic Panic Mode
+
+### Decision
+
+If Panic Mode was activated automatically by EnergyHub, EnergyHub may later leave Panic Mode automatically.
+
+### Reason
+
+Automatic decisions should also be reversible when conditions improve.
+
+---
+
+# Decision 010
+
+## Daily strategy evaluation
+
+### Decision
+
+EnergyHub evaluates the operating strategy once per day.
+
+The target time is approximately midnight.
+
+### Inputs
+
+- Grid Confidence
+- Battery SOC
+- Solar forecast
+- Weather forecast
+- Electricity tariff
+- House temperatures
+- Manual overrides
+
+### Result
+
+EnergyHub selects the recommended operating strategy for the coming day.
+
+---
+
+# Decision 011
+
+## Event-driven architecture
+
+### Decision
+
+EnergyHub is built around an Event Bus.
+
+### Reason
+
+Services remain independent.
+
+Instead of calling every service directly, new inverter telemetry is published once and consumed by interested services.
+
+Current subscribers include:
+
+- Grid Monitor
+
+Future subscribers may include:
+
+- Battery Monitor
+- Forecast Engine
+- Decision Engine
+- Notification Engine
+
+---
+
+# Decision 012
+
+## Layered architecture
+
+### Decision
+
+EnergyHub follows a layered architecture.
+
+```
+Hardware
+
+↓
+
+Communication
+
+↓
+
+Adapters
+
+↓
+
+EnergyHub Core
+
+↓
+
+Decision Engine
+
+↓
+
+Automation
+
+↓
+
+User Interface
+```
+
+### Reason
+
+Each layer has one responsibility.
+
+Upper layers never depend on hardware.
+
+Lower layers never contain business logic.
+
+---
+
+# Decision 013
+
+## Home Assistant is an execution platform
+
+### Decision
+
+Home Assistant is responsible for execution.
+
+EnergyHub is responsible for intelligence.
+
+### Reason
+
+Home Assistant already excels at:
+
+- Device integration
+- Dashboards
+- Automations
+- Entity management
+
+EnergyHub should focus exclusively on making good energy management decisions.
+
+---
+
+# Decision 014
+
+## EnergyHub optimizes policies, not devices
+
+### Decision
+
+EnergyHub is designed to optimize different operating policies.
+
+Examples include:
+
+- Resilience
+- Comfort
+- Economy
+- Future Net Billing profitability
+
+### Reason
+
+Hardware may change.
+
+Optimization goals may change.
+
+The Decision Engine should remain flexible enough to support different strategies without redesigning the architecture.
+
+---
+
+# Future Decisions
+
+This document will continue to evolve as EnergyHub grows.
+
+Major architectural decisions should always be recorded here before significant implementation work begins.

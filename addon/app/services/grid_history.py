@@ -6,6 +6,7 @@ from app.utils.logger import log
 
 
 GRID_HISTORY_FILE = Path("/data/grid_history.json")
+HISTORY_WINDOW_SECONDS = 48 * 60 * 60
 
 
 class GridHistoryService:
@@ -24,6 +25,7 @@ class GridHistoryService:
             self.last_state = data.get("last_state")
             self.last_change = data.get("last_change")
             self.events = data.get("events", [])
+            self.cleanup()
             log(f"Grid history loaded: {len(self.events)} events")
         except Exception as e:
             log(f"Failed to load grid history: {e}")
@@ -39,6 +41,13 @@ class GridHistoryService:
             GRID_HISTORY_FILE.write_text(json.dumps(data, ensure_ascii=False))
         except Exception as e:
             log(f"Failed to save grid history: {e}")
+
+    def cleanup(self):
+        cutoff = time.time() - HISTORY_WINDOW_SECONDS
+        self.events = [
+            event for event in self.events
+            if event.get("timestamp", 0) >= cutoff
+        ]
 
     def update(self, grid_available: bool):
         now = time.time()
@@ -65,19 +74,36 @@ class GridHistoryService:
 
         self.last_state = grid_available
         self.last_change = now
+
+        self.cleanup()
         self.save()
 
-        log(
-            "Grid state changed: "
-            f"{'online' if grid_available else 'offline'}"
-        )
+        log(f"Grid state changed: {'online' if grid_available else 'offline'}")
 
-    @property
-    def outage_count(self):
-        return len(
-            [
-                event
-                for event in self.events
-                if event["from"] is False and event["to"] is True
-            ]
-        )
+    def outage_hours(self, hours: int):
+        now = time.time()
+        window_start = now - hours * 3600
+        outage_seconds = 0
+
+        for event in self.events:
+            event_end = event.get("timestamp", now)
+            event_start = event_end - event.get("duration", 0)
+
+            if event.get("from") is False:
+                overlap_start = max(event_start, window_start)
+                overlap_end = min(event_end, now)
+
+                if overlap_end > overlap_start:
+                    outage_seconds += overlap_end - overlap_start
+
+        if self.last_state is False and self.last_change:
+            overlap_start = max(self.last_change, window_start)
+            outage_seconds += max(0, now - overlap_start)
+
+        return round(outage_seconds / 3600, 2)
+
+    def available_hours(self, hours: int):
+        return round(hours - self.outage_hours(hours), 2)
+
+    def availability_percent(self, hours: int):
+        return round((self.available_hours(hours) / hours) * 100, 1)
