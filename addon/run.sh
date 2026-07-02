@@ -1,5 +1,8 @@
-#!/usr/bin/with-contenv bash
+#!/usr/bin/env bash
+set -e
 
 echo "[Energy Hub] Starting..."
 echo "[Energy Hub] Version 1.0.0"
-python3 /publisher.py
+
+cd /app
+python3 publisher.py

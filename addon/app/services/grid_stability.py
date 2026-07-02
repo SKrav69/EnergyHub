@@ -3,15 +3,18 @@ class GridStabilityEngine:
         self.history = history
 
     def level(self):
-        # Basic first version.
-        # Later this will analyze outage hours over 24h/48h.
-        if self.history.outage_count == 0:
+        outage_hours_48h = self.history.outage_hours(48)
+
+        if outage_hours_48h < 2:
             return "normal"
 
-        if self.history.outage_count <= 2:
+        if outage_hours_48h < 6:
             return "unstable"
 
-        if self.history.outage_count <= 5:
+        if outage_hours_48h < 12:
             return "risk"
 
-        return "blackout"
+        if outage_hours_48h < 24:
+            return "blackout"
+
+        return "panic"

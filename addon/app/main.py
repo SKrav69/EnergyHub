@@ -71,8 +71,6 @@ def main():
 
             history.update(grid.is_available)
 
-            log(f"Grid stability: {stability.level()}")
-
             publish_grid_history(client, history, stability)
 
         except subprocess.TimeoutExpired:
