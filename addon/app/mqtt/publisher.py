@@ -95,3 +95,52 @@ def is_valid_value(key, value, previous):
                 pass
 
     return True
+
+def publish_grid_history(client, history, stability):
+    values = {
+        "grid_available_hours_24h": history.available_hours(24),
+        "grid_available_hours_48h": history.available_hours(48),
+        "grid_outage_hours_24h": history.outage_hours(24),
+        "grid_availability_percent_24h": history.availability_percent(24),
+        "grid_confidence_level": stability.level(),
+    }
+
+    for key, value in values.items():
+        client.publish(f"{BASE_TOPIC}/{key}/state", str(value), retain=True)
+
+def publish_grid_discovery(client):
+    device = {
+        "identifiers": ["energyhub_core"],
+        "name": "EnergyHub",
+        "manufacturer": "EnergyHub",
+        "model": "Core",
+    }
+
+    sensors = {
+        "grid_available_hours_24h": ("Grid Available 24h", "h", None, "measurement"),
+        "grid_available_hours_48h": ("Grid Available 48h", "h", None, "measurement"),
+        "grid_outage_hours_24h": ("Grid Outage 24h", "h", None, "measurement"),
+        "grid_availability_percent_24h": ("Grid Availability 24h", "%", None, "measurement"),
+        "grid_confidence_level": ("Grid Confidence", None, None, None),
+    }
+
+    for key, (name, unit, device_class, state_class) in sensors.items():
+        payload = {
+            "name": name,
+            "unique_id": f"energyhub_{key}",
+            "state_topic": f"{BASE_TOPIC}/{key}/state",
+            "availability_topic": AVAILABILITY_TOPIC,
+            "device": device,
+        }
+
+        if unit:
+            payload["unit_of_measurement"] = unit
+        if device_class:
+            payload["device_class"] = device_class
+        if state_class:
+            payload["state_class"] = state_class
+
+        topic = f"homeassistant/sensor/energyhub_{key}/config"
+        client.publish(topic, json.dumps(payload), retain=True)
+
+    log("Grid MQTT discovery published")

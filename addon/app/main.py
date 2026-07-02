@@ -4,7 +4,12 @@ import traceback
 
 from app.adapters.powmr import PowMrLocalAdapter
 from app.config import AVAILABILITY_TOPIC, load_options
-from app.mqtt.publisher import make_client, publish_discovery
+from app.mqtt.publisher import (
+    make_client,
+    publish_discovery,
+    publish_grid_discovery,
+    publish_grid_history,
+)
 from app.services.event_bus import EventBus
 from app.services.grid_history import GridHistoryService
 from app.services.grid_monitor import GridMonitor
@@ -52,6 +57,7 @@ def main():
     client.loop_start()
 
     publish_discovery(client, options["device_name"])
+    publish_grid_discovery(client)
     client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
     while True:
@@ -61,12 +67,13 @@ def main():
             watchdog.success()
 
             state = telemetry.process(data)
-
             bus.publish(state)
 
             history.update(grid.is_available)
 
             log(f"Grid stability: {stability.level()}")
+
+            publish_grid_history(client, history, stability)
 
         except subprocess.TimeoutExpired:
             watchdog.failure()
