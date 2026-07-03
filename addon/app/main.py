@@ -14,16 +14,10 @@ from app.services.event_bus import EventBus
 from app.services.grid_history import GridHistoryService
 from app.services.grid_monitor import GridMonitor
 from app.services.grid_stability import GridStabilityEngine
+from app.services.health_monitor import HealthMonitor
 from app.services.telemetry import TelemetryService
 from app.services.watchdog import CommunicationWatchdog
 from app.utils.logger import log
-
-
-def log_watchdog_change(watchdog):
-    change = watchdog.state_changed()
-    if change:
-        previous, current = change
-        log(f"Communication state changed: {previous} -> {current}")
 
 
 def main():
@@ -45,6 +39,8 @@ def main():
 
     telemetry = TelemetryService(client)
     watchdog = CommunicationWatchdog()
+    health = HealthMonitor()
+
     grid = GridMonitor()
     history = GridHistoryService()
     stability = GridStabilityEngine(history)
@@ -75,11 +71,12 @@ def main():
 
             if not state.valid:
                 watchdog.failure()
-                log_watchdog_change(watchdog)
+                health.update(watchdog)
                 client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
+
             else:
                 watchdog.success()
-                log_watchdog_change(watchdog)
+                health.update(watchdog)
                 client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
                 bus.publish(state)
@@ -88,15 +85,17 @@ def main():
 
         except subprocess.TimeoutExpired:
             watchdog.failure()
+            health.update(watchdog)
+
             log("ERROR: mpp-solar timeout")
-            log_watchdog_change(watchdog)
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
         except Exception:
             watchdog.failure()
+            health.update(watchdog)
+
             log("ERROR:")
             log(traceback.format_exc())
-            log_watchdog_change(watchdog)
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
         time.sleep(int(options["poll_interval"]))
