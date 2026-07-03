@@ -19,6 +19,13 @@ from app.services.watchdog import CommunicationWatchdog
 from app.utils.logger import log
 
 
+def log_watchdog_change(watchdog):
+    change = watchdog.state_changed()
+    if change:
+        previous, current = change
+        log(f"Communication state changed: {previous} -> {current}")
+
+
 def main():
     options = load_options()
 
@@ -68,13 +75,11 @@ def main():
 
             if not state.valid:
                 watchdog.failure()
+                log_watchdog_change(watchdog)
                 client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
-                log(
-                    f"Communication state: {watchdog.state()} "
-                    f"(errors={watchdog.consecutive_errors})"
-                )
             else:
                 watchdog.success()
+                log_watchdog_change(watchdog)
                 client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
                 bus.publish(state)
@@ -83,25 +88,15 @@ def main():
 
         except subprocess.TimeoutExpired:
             watchdog.failure()
-
             log("ERROR: mpp-solar timeout")
-            log(
-                f"Communication state: {watchdog.state()} "
-                f"(errors={watchdog.consecutive_errors})"
-            )
-
+            log_watchdog_change(watchdog)
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
         except Exception:
             watchdog.failure()
-
             log("ERROR:")
             log(traceback.format_exc())
-            log(
-                f"Communication state: {watchdog.state()} "
-                f"(errors={watchdog.consecutive_errors})"
-            )
-
+            log_watchdog_change(watchdog)
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
         time.sleep(int(options["poll_interval"]))
