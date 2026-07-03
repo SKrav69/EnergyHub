@@ -6,7 +6,10 @@ class GridMonitor:
         self.grid_available = False
 
     def handle_inverter_state(self, state: InverterState):
-        self.grid_available = state.is_grid_available
+        if not state.valid:
+            return
+
+        self.grid_available = state.grid_available
 
     @property
     def is_available(self):

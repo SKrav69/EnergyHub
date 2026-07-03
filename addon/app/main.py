@@ -64,14 +64,22 @@ def main():
         try:
             data = inverter.read_telemetry()
 
-            watchdog.success()
-
             state = telemetry.process(data)
-            bus.publish(state)
 
-            history.update(grid.is_available)
+            if not state.valid:
+                watchdog.failure()
+                client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
+                log(
+                    f"Communication state: {watchdog.state()} "
+                    f"(errors={watchdog.consecutive_errors})"
+                )
+            else:
+                watchdog.success()
+                client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
-            publish_grid_history(client, history, stability)
+                bus.publish(state)
+                history.update(grid.is_available)
+                publish_grid_history(client, history, stability)
 
         except subprocess.TimeoutExpired:
             watchdog.failure()

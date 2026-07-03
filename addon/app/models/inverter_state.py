@@ -1,38 +1,25 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Optional
 
 
 @dataclass
 class InverterState:
-    raw: dict[str, Any]
+    # Communication quality
+    valid: bool = True
 
-    @property
-    def battery_soc(self):
-        return self.raw.get("battery_capacity")
+    # Grid
+    grid_available: bool = False
 
-    @property
-    def pv1_power(self):
-        return self.raw.get("pv1_charging_power")
+    # Battery
+    battery_soc: Optional[float] = None
+    battery_voltage: Optional[float] = None
+    battery_current: Optional[float] = None
 
-    @property
-    def house_load(self):
-        return self.raw.get("ac_output_active_power")
+    # PV
+    pv_power: Optional[float] = None
 
-    @property
-    def grid_voltage(self):
-        return self.raw.get("ac_input_voltage")
+    # Load
+    load_power: Optional[float] = None
 
-    @property
-    def battery_voltage(self):
-        return self.raw.get("battery_voltage")
-
-    @property
-    def temperature(self):
-        return self.raw.get("inverter_heat_sink_temperature")
-
-    @property
-    def is_grid_available(self):
-        try:
-            return float(self.grid_voltage) > 180
-        except Exception:
-            return False
+    # Raw telemetry
+    raw: dict | None = None
