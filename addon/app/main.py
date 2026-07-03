@@ -9,6 +9,8 @@ from app.mqtt.publisher import (
     publish_discovery,
     publish_grid_discovery,
     publish_grid_history,
+    publish_health,
+    publish_health_discovery,
 )
 from app.services.event_bus import EventBus
 from app.services.grid_history import GridHistoryService
@@ -61,22 +63,24 @@ def main():
 
     publish_discovery(client, options["device_name"])
     publish_grid_discovery(client)
+    publish_health_discovery(client)
     client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
     while True:
         try:
             data = inverter.read_telemetry()
-
             state = telemetry.process(data)
 
             if not state.valid:
                 watchdog.failure()
                 health.update(watchdog)
+                publish_health(client, health)
                 client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
             else:
                 watchdog.success()
                 health.update(watchdog)
+                publish_health(client, health)
                 client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
                 bus.publish(state)
@@ -86,6 +90,7 @@ def main():
         except subprocess.TimeoutExpired:
             watchdog.failure()
             health.update(watchdog)
+            publish_health(client, health)
 
             log("ERROR: mpp-solar timeout")
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
@@ -93,6 +98,7 @@ def main():
         except Exception:
             watchdog.failure()
             health.update(watchdog)
+            publish_health(client, health)
 
             log("ERROR:")
             log(traceback.format_exc())

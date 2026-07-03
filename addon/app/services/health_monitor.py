@@ -18,3 +18,8 @@ class HealthMonitor:
     @property
     def state(self):
         return self.communication_state
+
+    def mqtt_values(self):
+        return {
+            "communication_status": self.communication_state,
+        }
