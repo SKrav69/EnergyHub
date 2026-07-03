@@ -323,3 +323,20 @@ while remaining transparent, predictable and understandable to the homeowner.
 The homeowner should always be able to answer:
 
 > "Why did EnergyHub make this decision?"
+
+## Daily Summary Engine
+
+Runs once per day before daily sensors reset.
+
+Responsibilities:
+
+- Store House Consumption
+- Store Solar Balance
+- Store Grid Availability
+- Store Grid Import
+- Store Battery Grid Charge
+- Publish historical MQTT sensors
+
+Purpose:
+
+Provide stable daily historical values for dashboards and future Decision Engine analytics.

@@ -22,7 +22,7 @@ Deliverables:
 
 Status:
 
-In Progress
+✅ Completed
 
 ---
 
@@ -36,14 +36,43 @@ Deliverables:
 
 * PowMr integration
 * MQTT communication
+* MQTT Discovery
 * Device abstraction layer
-* Inverter control
+* Inverter telemetry
 * Battery monitoring
+* Inverter control
 * Basic notifications
+
+Status:
+
+🚧 In Progress
 
 ---
 
-# v0.3 User Experience
+# v0.3 Health & Reliability
+
+Goal:
+
+Ensure the system can detect, report and recover from failures.
+
+Deliverables:
+
+* Communication Watchdog
+* Health Monitor
+* MQTT Health entities
+* Grid monitoring
+* Grid history
+* Grid confidence
+* Automatic recovery
+* Self diagnostics
+
+Status:
+
+🚧 In Progress
+
+---
+
+# v0.4 User Experience
 
 Goal:
 
@@ -54,22 +83,45 @@ Deliverables:
 * Family Dashboard
 * Engineering Dashboard
 * House status overview
+* Floor overview
 * Home modes
 * Push notifications
 
 Examples:
 
-Summer Mode
+* Summer Mode
+* Winter Mode
+* Away Mode
+* Panic Mode
 
-Winter Mode
+Status:
 
-Away Mode
-
-Panic Mode
+🚧 In Progress
 
 ---
 
-# v0.4 Automation Engine
+# v0.5 Daily Intelligence
+
+Goal:
+
+Convert raw telemetry into historical knowledge.
+
+Deliverables:
+
+* Daily Summary Engine
+* Daily Energy Balance
+* Daily Grid Availability
+* Daily House Consumption
+* Daily Grid Import
+* Historical MQTT sensors
+
+Status:
+
+📋 Planned
+
+---
+
+# v0.6 Decision Engine
 
 Goal:
 
@@ -77,15 +129,23 @@ Automate routine decisions.
 
 Deliverables:
 
+* Summer Mode
+* Winter Mode
+* Away Mode
+* Panic Mode
+* Heat pump automation
+* Smart plug automation
 * Battery charging automation
 * Smart inverter modes
 * EV charging automation
-* Smart plug management
-* Heat pump automation
+
+Status:
+
+📋 Planned
 
 ---
 
-# v0.5 Forecasting
+# v0.7 Forecasting
 
 Goal:
 
@@ -99,9 +159,13 @@ Deliverables:
 * Battery prediction
 * Grid outage preparation
 
+Status:
+
+📋 Planned
+
 ---
 
-# v0.6 Energy Optimization
+# v0.8 Energy Optimization
 
 Goal:
 
@@ -115,25 +179,13 @@ Deliverables:
 * Smart charging
 * Battery reserve management
 
----
+Status:
 
-# v0.7 Autonomous Home
-
-Goal:
-
-Reduce homeowner interaction to a minimum.
-
-Deliverables:
-
-* Progressive Automation
-* Decision Engine
-* Explainable Decisions
-* Self-Healing
-* Automatic recovery
+📋 Planned
 
 ---
 
-# v0.8 Platform
+# v0.9 Platform
 
 Goal:
 
@@ -148,6 +200,10 @@ Deliverables:
 * Matter support
 * Extended device ecosystem
 
+Status:
+
+📋 Planned
+
 ---
 
 # v1.0 EnergyHub
@@ -160,10 +216,10 @@ Characteristics:
 
 * Vendor independent
 * Hardware independent
+* Local-first
 * Human-centric
 * Calm technology
 * Progressive automation
-* Local-first
 * Explainable
 * Self-healing
 
@@ -173,4 +229,4 @@ Success is measured by one question:
 
 The ideal answer is:
 
-Almost never.
+**Almost never.**

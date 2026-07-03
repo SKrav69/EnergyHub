@@ -1,0 +1,14 @@
+type: entities
+title: 3rd Floor
+show_header_toggle: false
+entities:
+  - entity: sensor.lumi_weather_v1_b318_temperature
+    name: Temperature
+  - entity: sensor.lumi_weather_v1_b318_relative_humidity
+    name: Humidity
+  - entity: switch.chuangmi_212a01_ea40_switch
+    name: Heat Pump
+  - entity: sensor.chuangmi_212a01_ea40_electric_power
+    name: Heat Pump Power
+  - entity: input_number.input_number_floor3_heat_pump_timer_hours
+    name: Auto-Off

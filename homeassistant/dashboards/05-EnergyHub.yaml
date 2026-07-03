@@ -1,0 +1,10 @@
+type: entities
+title: EnergyHub
+show_header_toggle: false
+entities:
+  - entity: sensor.energyhub_communication_status
+    name: Communication
+  - entity: sensor.energyhub_grid_confidence
+    name: Grid Confidence
+  - entity: sensor.energyhub_grid_availability_24h
+    name: Grid Availability 24h

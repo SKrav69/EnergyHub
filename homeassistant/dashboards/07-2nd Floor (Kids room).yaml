@@ -1,0 +1,8 @@
+type: entities
+title: 2nd Floor (Kids room)
+show_header_toggle: false
+entities:
+  - entity: sensor.miaomiaoce_t2_1bf2_temperature
+    name: Temperature
+  - entity: sensor.miaomiaoce_t2_1bf2_relative_humidity
+    name: Humidity
