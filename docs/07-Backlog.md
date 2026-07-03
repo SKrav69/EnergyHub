@@ -148,3 +148,58 @@ Examples:
 Backlog items are not forgotten.
 
 They are simply waiting for the right stage of development.
+
+## Reliability
+
+- Telemetry freshness detection
+- Automatic add-on restart
+- Communication Health MQTT sensor
+- Health dashboard card
+- Recovery notifications
+
+---
+
+## Dashboard
+
+Developer Dashboard
+
+- Health card
+- Grid Confidence
+- Grid Availability
+
+Family Dashboard
+
+- Current mode
+- Battery SOC
+- Sunrise / Sunset
+- Heating controls
+- Panic mode
+
+---
+
+## Daily Summary
+
+Replace PV Generation with:
+
+- House Consumption
+- Energy Opportunity
+- Grid Availability
+
+Store:
+
+- Last 7 days
+- Last 30 days
+
+Future:
+
+- Grid charging energy
+- Exported energy
+- Imported energy
+
+---
+
+## Documentation
+
+Update documentation at the end of every development session.
+
+PROJECT_STATE.md becomes the primary entry point for future development.
