@@ -6,12 +6,15 @@ from app.adapters.powmr import PowMrLocalAdapter
 from app.config import AVAILABILITY_TOPIC, load_options
 from app.mqtt.publisher import (
     make_client,
+    publish_daily_summary,
+    publish_daily_summary_discovery,
     publish_discovery,
     publish_grid_discovery,
     publish_grid_history,
     publish_health,
     publish_health_discovery,
 )
+from app.services.daily_summary import DailySummaryService
 from app.services.event_bus import EventBus
 from app.services.grid_history import GridHistoryService
 from app.services.grid_monitor import GridMonitor
@@ -46,9 +49,33 @@ def main():
     grid = GridMonitor()
     history = GridHistoryService()
     stability = GridStabilityEngine(history)
+    daily_summary = DailySummaryService(history)
 
     bus = EventBus()
     bus.subscribe(grid.handle_inverter_state)
+
+    def on_connect(client, userdata, flags, rc):
+        if rc == 0:
+            log("MQTT connected")
+            client.subscribe("energyhub/input/ha/#")
+            log("Subscribed to energyhub/input/ha/#")
+        else:
+            log(f"MQTT connection failed with code {rc}")
+
+    def on_message(client, userdata, msg):
+        topic = msg.topic
+        payload = msg.payload.decode("utf-8")
+
+        prefix = "energyhub/input/ha/"
+        if not topic.startswith(prefix):
+            return
+
+        key = topic.replace(prefix, "")
+        daily_summary.update_input(key, payload)
+        publish_daily_summary(client, daily_summary)
+
+    client.on_connect = on_connect
+    client.on_message = on_message
 
     while True:
         try:
@@ -64,6 +91,9 @@ def main():
     publish_discovery(client, options["device_name"])
     publish_grid_discovery(client)
     publish_health_discovery(client)
+    publish_daily_summary_discovery(client)
+    publish_daily_summary(client, daily_summary)
+
     client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
     while True:
@@ -76,7 +106,6 @@ def main():
                 health.update(watchdog)
                 publish_health(client, health)
                 client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
-
             else:
                 watchdog.success()
                 health.update(watchdog)
@@ -91,7 +120,6 @@ def main():
             watchdog.failure()
             health.update(watchdog)
             publish_health(client, health)
-
             log("ERROR: mpp-solar timeout")
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
@@ -99,7 +127,6 @@ def main():
             watchdog.failure()
             health.update(watchdog)
             publish_health(client, health)
-
             log("ERROR:")
             log(traceback.format_exc())
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)

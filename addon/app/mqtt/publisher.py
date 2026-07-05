@@ -185,3 +185,65 @@ def publish_health_discovery(client):
         client.publish(topic, json.dumps(payload), retain=True)
 
     log("Health MQTT discovery published")
+
+
+def publish_daily_summary(client, daily_summary):
+    for key, value in daily_summary.mqtt_values().items():
+        client.publish(f"{BASE_TOPIC}/{key}/state", str(value), retain=True)
+
+
+def publish_daily_summary_discovery(client):
+    device = {
+        "identifiers": ["energyhub_core"],
+        "name": "EnergyHub",
+        "manufacturer": "EnergyHub",
+        "model": "Core",
+    }
+
+    sensors = {
+        "daily_house_consumption": (
+            "Daily House Consumption",
+            "kWh",
+            "energy",
+            "measurement",
+        ),
+        "daily_solar_forecast": (
+            "Daily Solar Forecast",
+            "kWh",
+            "energy",
+            "measurement",
+        ),
+        "daily_solar_surplus_estimated": (
+            "Daily Solar Surplus Estimated",
+            "kWh",
+            "energy",
+            "measurement",
+        ),
+        "daily_grid_availability": (
+            "Daily Grid Availability",
+            "%",
+            None,
+            "measurement",
+        ),
+    }
+
+    for key, (name, unit, device_class, state_class) in sensors.items():
+        payload = {
+            "name": name,
+            "unique_id": f"energyhub_{key}",
+            "state_topic": f"{BASE_TOPIC}/{key}/state",
+            "availability_topic": AVAILABILITY_TOPIC,
+            "device": device,
+        }
+
+        if unit:
+            payload["unit_of_measurement"] = unit
+        if device_class:
+            payload["device_class"] = device_class
+        if state_class:
+            payload["state_class"] = state_class
+
+        topic = f"homeassistant/sensor/energyhub_{key}/config"
+        client.publish(topic, json.dumps(payload), retain=True)
+
+    log("Daily Summary MQTT discovery published")
