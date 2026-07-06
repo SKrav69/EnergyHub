@@ -1,0 +1,33 @@
+type: vertical-stack
+cards:
+  - type: markdown
+    content: |
+      ## EnergyHub Intelligence
+      {% set level = states('sensor.energyhub_grid_confidence') %}
+      {% if level == 'normal' %}
+        # 🟢 NORMAL
+      {% elif level == 'unstable' %}
+        # 🟡 UNSTABLE
+      {% elif level == 'risk' %}
+        # 🟠 RISK
+      {% elif level == 'panic' %}
+        # 🔴 PANIC
+      {% else %}
+        # ⚪ UNKNOWN
+      {% endif %}
+      Grid Confidence
+  - type: entities
+    show_header_toggle: false
+    entities:
+      - entity: sensor.energyhub_grid_available_24h
+        name: Grid Available 24h
+      - entity: sensor.energyhub_grid_available_48h
+        name: Grid Available 48h
+      - entity: sensor.energyhub_daily_house_consumption
+        name: Consumption Yesterday
+      - entity: sensor.energyhub_daily_solar_surplus_estimated
+        name: Solar Surplus Yesterday
+      - entity: sensor.solcast_pv_forecast_forecast_today
+        name: Forecast Today
+      - entity: sensor.solcast_pv_forecast_forecast_tomorrow
+        name: Forecast Tomorrow

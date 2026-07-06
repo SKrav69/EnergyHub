@@ -1,0 +1,24 @@
+type: grid
+columns: 1
+square: false
+cards:
+  - type: entities
+    title: EnergyHub Status
+    show_header_toggle: false
+    entities:
+      - type: section
+        label: "Mode: Summer"
+      - entity: sensor.energyhub_communication_status
+        name: Communication
+      - entity: sensor.powmr_10_2m_battery_soc
+        name: Battery SOC
+      - entity: sensor.powmr_10_2m_battery_charging_current
+        name: Battery Charging Current
+      - entity: sensor.powmr_10_2m_battery_discharge_current
+        name: Battery Discharge Current
+      - entity: sensor.powmr_10_2m_output_power
+        name: House Load
+      - entity: sensor.powmr_10_2m_pv1_power
+        name: PV1 Power
+      - entity: sensor.powmr_10_2m_grid_voltage
+        name: Grid Voltage

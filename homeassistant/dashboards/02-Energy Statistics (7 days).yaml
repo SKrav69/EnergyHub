@@ -1,16 +1,12 @@
 type: custom:apexcharts-card
-
 header:
   show: true
   title: Energy Statistics (7 days)
   show_states: true
   colorize_states: true
-
 graph_span: 7d
-
 span:
   end: day
-
 apex_config:
   chart:
     type: bar
@@ -24,28 +20,29 @@ apex_config:
     type: datetime
     labels:
       format: dd MMM
-
 series:
   - entity: sensor.energyhub_daily_house_consumption
-    name: House Consumption
+    name: Consumption Yesterday
     type: column
     color: "#2980b9"
     float_precision: 1
     yaxis_id: kwh
+    show:
+      in_header: false
     group_by:
       func: max
       duration: 1d
-
   - entity: sensor.energyhub_daily_solar_surplus_estimated
     name: Solar Surplus Estimated
     type: column
     color: "#e67e22"
     float_precision: 1
     yaxis_id: kwh
+    show:
+      in_header: false
     group_by:
       func: max
       duration: 1d
-
   - entity: sensor.energyhub_daily_grid_availability
     name: Grid Availability
     type: line
@@ -53,10 +50,18 @@ series:
     stroke_width: 3
     float_precision: 1
     yaxis_id: grid
+    show:
+      in_header: false
     group_by:
       func: avg
       duration: 1d
-
+  - entity: sensor.powmr_10_2m_daily_house_consumption
+    name: Consumption Today
+    color: "#3498db"
+    float_precision: 1
+    show:
+      in_chart: false
+      in_header: true
   - entity: sensor.solcast_pv_forecast_forecast_today
     name: ☀️ Forecast Today
     color: "#f1c40f"
@@ -64,7 +69,6 @@ series:
     show:
       in_chart: false
       in_header: true
-
   - entity: sensor.solcast_pv_forecast_forecast_tomorrow
     name: ☀️ Forecast Tomorrow
     color: "#f39c12"
@@ -72,7 +76,6 @@ series:
     show:
       in_chart: false
       in_header: true
-
 yaxis:
   - id: kwh
     min: 0
@@ -80,7 +83,6 @@ yaxis:
     apex_config:
       title:
         text: kWh
-
   - id: grid
     opposite: true
     min: 0
