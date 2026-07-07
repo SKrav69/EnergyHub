@@ -4,91 +4,69 @@
 
 Its purpose is to determine how the house should operate while maximizing comfort, minimizing energy cost and maintaining resilience during uncertain grid conditions.
 
-The Decision Engine does not create historical facts.
-
-It consumes reliable facts and operational state produced by other EnergyHub services.
-
 ---
 
 # Core Philosophy
 
 EnergyHub should not react only to current events.
 
-Instead, it should continuously determine the most appropriate operating strategy using:
+Instead, it should continuously evaluate the most appropriate operating strategy using:
 
 - current system state;
 - historical data;
 - weather and solar forecasts;
 - household behaviour;
-- user preferences.
+- grid reliability;
+- battery health;
+- user preferences;
+- manual overrides.
 
 EnergyHub should always answer one question:
 
 > "What is the best decision for the house right now?"
 
-Every important decision should also answer:
+Every significant recommendation or decision should also answer:
 
 > "Why did EnergyHub make this decision?"
 
 ---
 
-# Architecture
+# Decision Engine v1
 
-The Decision Engine is built on top of EnergyHub services.
+The first Decision Engine implementation should be recommendation-only.
 
-```text
-PowMr
-  │
-  ▼
-Telemetry Service
-  │
-  ▼
-Grid Monitor
-  │
-  ├──────────────► Grid History
-  │                       │
-  │                       ├──► Grid Stability Engine
-  │                       │          │
-  │                       │          ▼
-  │                       │    Grid Confidence
-  │                       │
-  │                       └──► Daily Summary Engine
-  │
-Home Assistant
-  │
-  │ Daily Summary MQTT Inputs
-  ▼
-Daily Summary Engine
-  │
-  ▼
-Decision Engine
-  │
-  ▼
-Intentions / Recommendations
-  │
-  ▼
-Device Control Layer
-```
+It may produce:
 
-The architectural responsibility is intentionally separated:
+- Recommended Mode;
+- Recommendation;
+- Reason;
+- Recommended Action.
+
+Example:
 
 ```text
-Telemetry and Services
-        │
-        └── create reliable facts
+Recommended Mode: Winter
 
-Daily Summary Engine
-        │
-        └── creates historical daily facts
+Recommendation:
+Charge battery during the night tariff.
 
-Decision Engine
-        │
-        └── evaluates facts and produces intentions
+Reason:
+Low solar forecast tomorrow and reduced grid confidence.
 
-Device Control Layer
-        │
-        └── translates intentions into actions
+Recommended Action:
+Enable scheduled grid charging.
 ```
+
+The first Decision Engine version should not automatically execute inverter commands.
+
+Recommendations should first be observed and validated against real household behaviour.
+
+Automatic control should be introduced progressively only after:
+
+- recommendations have been validated;
+- inverter control commands have been tested safely;
+- charging-source behaviour has been confirmed;
+- recovery behaviour is understood.
 
 ---
 
@@ -101,7 +79,15 @@ Each layer has a single responsibility.
 Example:
 
 ```text
-Grid Confidence
+System Health
+
+↓
+
+Battery Health
+
+↓
+
+Grid Reliability
 
 ↓
 
@@ -121,105 +107,120 @@ Load Priorities
 
 ↓
 
-Device Intentions
+Recommended Actions
 ```
 
-Each layer contributes information to the final decision.
+Each layer contributes information to the final recommendation.
 
-The Decision Engine should remain modular.
-
-A new decision input or strategy should not require redesigning the entire engine.
+A failure or uncertainty in one layer should not silently produce an unsafe decision.
 
 ---
 
 # Decision Inputs
 
-Initial Decision Engine inputs may include:
+Decision Engine inputs may include:
 
 - Battery SOC;
+- Battery Health;
 - Grid Confidence;
-- rolling 48-hour Grid Availability;
-- Daily Summary history;
-- Daily House Consumption;
-- Daily Solar Forecast;
-- Daily Solar Surplus Estimated;
+- Grid Availability;
 - Solar Forecast Today;
 - Solar Forecast Tomorrow;
+- House Consumption Previous Day;
+- Solar Surplus Previous Day;
 - Indoor temperatures;
 - Outdoor temperature;
 - Electricity tariff;
-- current operating mode;
-- manual overrides.
+- Current Operating Mode;
+- Manual overrides.
 
 Future inputs may include:
 
-- Daily Grid Import Estimated;
-- Battery Grid Charge Estimated;
+- individual battery cell voltages;
+- cell voltage delta;
+- BMS alarms;
+- balancing status;
 - EV battery SOC;
-- calendar information;
 - occupancy prediction;
-- historical household behaviour;
-- dynamic electricity pricing.
-
-Not every available metric should automatically become a Decision Engine input.
-
-Metrics with low confidence or informational-only purpose must remain outside authoritative decision logic.
+- calendar information;
+- historical household behaviour.
 
 ---
 
-# Decision Evaluation
+# Dashboard Architecture
 
-The Decision Engine should support two types of evaluation.
+The Developer Dashboard separates current system state from information and recommendations.
 
-## Scheduled Evaluation
+## EnergyHub Status
 
-A complete strategy evaluation is performed at a defined daily time.
+Answers:
 
-The exact schedule will be determined during Decision Engine implementation.
+```text
+What is happening now?
 
-The Daily Summary Engine already creates the previous day's historical facts before Home Assistant daily sensors reset.
+Is the system healthy?
+```
 
-The Decision Engine consumes those facts.
+Current information includes:
 
-## Event-Driven Evaluation
+- Communication Status;
+- Battery SOC;
+- Battery Charging Current;
+- Battery Discharge Current;
+- House Load;
+- PV1 Power;
+- Grid Voltage.
 
-Significant events may trigger an additional evaluation.
+Future information may include:
 
-Examples:
-
-- Grid Confidence changes;
-- battery SOC crosses a critical threshold;
-- grid becomes unavailable;
-- grid returns;
-- operating mode is changed manually;
-- solar forecast changes significantly;
-- occupancy state changes.
-
-The selected strategy remains active until the next scheduled or significant event-driven evaluation.
+- Current Operating Mode;
+- Battery Health;
+- Inverter Health.
 
 ---
 
-# Initial Implementation Strategy
+## EnergyHub Intelligence
 
-Decision Engine v1 should be recommendation-only.
+Answers:
 
-It should:
+```text
+What does EnergyHub know?
 
-- evaluate current conditions;
-- determine the recommended operating mode;
-- determine recommended battery strategy;
-- determine recommended flexible-load strategy;
-- explain the reason for each recommendation;
-- publish the recommendation through MQTT.
+What does EnergyHub recommend?
 
-It should not initially:
+Why?
+```
 
-- change inverter settings automatically;
-- switch heat pumps automatically based on complex energy logic;
-- control EV charging;
-- execute high-impact actions without validation.
+Current information includes:
 
-Automatic execution should be introduced progressively after recommendations have been observed and validated against real household behaviour.
+- Grid Confidence;
+- Grid Available 24h;
+- Grid Available 48h;
+- Consumption Yesterday;
+- Solar Surplus Yesterday;
+- Solar Forecast Today;
+- Solar Forecast Tomorrow.
+
+Future information should include:
+
+- Recommended Mode;
+- Recommendation;
+- Reason;
+- Recommended Action.
+
+The intended relationship is:
+
+```text
+EnergyHub Status
+→ Current Mode
+
+EnergyHub Intelligence
+→ Recommended Mode
+→ Reason
+→ Recommended Action
+```
+
+When Current Mode and Recommended Mode differ, EnergyHub should clearly explain why.
 
 ---
 
@@ -229,40 +230,20 @@ Automatic execution should be introduced progressively after recommendations hav
 
 Primary objective:
 
-Maximize useful solar energy consumption while maintaining household comfort.
-
-Priority:
-
-```text
-PV
-
-↓
-
-House
-
-↓
-
-Battery
-
-↓
-
-Heat Pumps
-
-↓
-
-EV
-
-↓
-
-Export / Unused Solar Potential
-```
+Use available solar energy efficiently.
 
 Typical behaviour:
 
 - Battery used normally.
-- Flexible loads encouraged when solar surplus is expected.
-- Grid charging disabled under normal conditions.
-- Household comfort has priority over maximizing statistics.
+- Flexible loads encouraged.
+- Planned grid charging disabled.
+- Solar-only battery charging preferred.
+
+Current candidate charging-source configuration:
+
+```text
+OSO
+```
 
 ---
 
@@ -270,40 +251,23 @@ Typical behaviour:
 
 Primary objective:
 
-Guarantee comfort and resilience while minimizing electricity cost.
-
-Priority:
-
-```text
-PV
-
-↓
-
-House
-
-↓
-
-Battery Reserve
-
-↓
-
-Night Tariff Charging
-
-↓
-
-Heat Pumps
-
-↓
-
-Comfort Optimization
-```
+Guarantee comfort while minimizing cost and maintaining sufficient battery reserve.
 
 Typical behaviour:
 
 - Night tariff charging may be enabled.
 - Battery reserve may be increased.
-- Heating strategy may use weather and energy forecasts.
+- Heating may be optimized.
+- Solar forecast influences charging decisions.
 - Grid Confidence influences battery strategy.
+
+Current candidate charging-source configuration during scheduled grid charging:
+
+```text
+SNU
+```
+
+SNU behavior requires additional real-system validation before automatic control is implemented.
 
 ---
 
@@ -315,19 +279,10 @@ Protect the house with minimum unnecessary energy consumption.
 
 Typical behaviour:
 
-- Reduced heating where safe.
-- Battery strategy optimized for resilience.
-- Flexible loads reduced or disabled.
-- Smart plugs may be controlled according to house requirements.
-- Solar energy may be used to prepare the house before expected occupancy.
-
-Future inputs may include:
-
-- motion sensors;
-- calendar information;
-- user override;
-- time of day;
-- occupancy prediction.
+- Reduced heating.
+- Appropriate battery reserve.
+- Flexible loads disabled or restricted.
+- House protection remains active.
 
 ---
 
@@ -335,75 +290,194 @@ Future inputs may include:
 
 Primary objective:
 
-Maximize resilience during exceptional conditions.
+Maximize resilience.
 
 Typical behaviour:
 
-- Battery maintained at a high state of charge.
-- Grid charging may be allowed immediately.
-- Non-critical loads may be disabled.
-- Flexible loads are disabled unless explicitly permitted.
-- EnergyHub prioritizes house protection and outage preparation.
+- Battery maintained close to 100%.
+- Grid charging allowed immediately when appropriate.
+- Only essential loads guaranteed.
+- Flexible loads disabled unless explicitly permitted.
 
-Panic Mode may be activated manually or recommended because of severe system conditions.
+Current candidate charging-source configuration:
 
-If Panic Mode is activated manually, EnergyHub must never exit it automatically.
+```text
+SNU
+```
 
-Instead, it may provide a recommendation.
+Panic Mode charging behavior must remain conservative and explainable.
 
-Example:
+---
 
-> Recommended mode: Winter
+# Charging-Source Strategy
 
-The homeowner decides when normal automation resumes.
+The current PowMr firmware exposes three usable charging-source modes:
+
+```text
+OSO
+CSO
+SNU
+```
+
+`CUB` is not available on the current inverter firmware.
+
+---
+
+## OSO
+
+Meaning:
+
+```text
+Only Solar
+```
+
+Current intended use:
+
+```text
+Normal Summer operation
+```
+
+Battery charging is performed from solar energy only.
+
+---
+
+## CSO
+
+Meaning:
+
+```text
+Solar First
+```
+
+Real-system testing showed that CSO is not suitable for planned continuous grid charging.
+
+Observed behaviour:
+
+```text
+Night
+PV generation = 0
+Utility charging active
+
+↓
+
+PV generation begins
+
+↓
+
+Utility charging current significantly decreases
+```
+
+Because of this behaviour, CSO is no longer the primary candidate for Winter scheduled grid charging or Panic charging.
+
+---
+
+## SNU
+
+SNU is the current candidate for charging scenarios where both utility and solar charging should be available.
+
+Current intended use:
+
+```text
+Winter scheduled grid charging
+Panic charging
+```
+
+Expected strategy:
+
+```text
+Summer
+→ OSO
+
+Winter scheduled grid charging
+→ SNU
+
+Panic charging
+→ SNU
+```
+
+The expected SNU behaviour is:
+
+```text
+Utility charging
++
+Available solar charging
+=
+Combined battery charging
+```
+
+subject to:
+
+- maximum utility charging current;
+- maximum total charging current;
+- battery charging limits;
+- inverter firmware behaviour.
+
+This behaviour has not yet been fully validated on the real inverter.
+
+EnergyHub must not assume that SNU maintains a fixed utility charging current while adding available PV power until real-system testing confirms the exact behaviour.
+
+The charging-source strategy therefore remains:
+
+```text
+OSO ↔ SNU
+```
+
+pending final SNU validation.
 
 ---
 
 # Automatic vs Manual Decisions
 
-EnergyHub distinguishes between recommended, automatic and manual decisions.
+EnergyHub distinguishes between automatic and manual decisions.
 
-## Recommendation
+## Automatic Modes
 
-EnergyHub determines what it believes should happen but does not execute the action.
+```text
+Summer
+Winter
+Away
+```
+
+These modes may eventually be changed automatically.
+
+Automatic mode switching should be introduced only after recommendation-only Decision Engine behaviour has been validated.
+
+---
+
+## Manual Mode
+
+```text
+Panic
+```
+
+If Panic Mode is activated manually:
+
+EnergyHub never exits Panic automatically.
+
+Instead, it provides recommendations.
 
 Example:
 
 ```text
-Recommended Mode: Winter
+Current Mode:
+Panic
+
+Recommended Mode:
+Winter
 
 Reason:
-Grid Confidence is unstable.
-Solar Forecast Tomorrow is low.
-Battery SOC is 42%.
-
-Recommendation:
-Charge battery during the night tariff.
+Grid Confidence has returned to normal and battery reserve is sufficient.
 ```
 
-## Automatic Decision
-
-EnergyHub may eventually execute validated low-risk actions automatically.
-
-Automatic control should be introduced progressively.
-
-## Manual Override
-
-The homeowner may override automatic behaviour.
-
-Manual overrides must be visible to the Decision Engine and must not be silently reversed.
-
-Panic Mode activated manually is a persistent manual override until explicitly cancelled.
+The homeowner decides when normal automation resumes.
 
 ---
 
-# Grid Confidence
+# Grid Reliability
 
-Grid Confidence is independent from operating modes.
+Grid Reliability is independent from Operating Modes.
 
-It evaluates recent grid behaviour using rolling 48-hour Grid Availability history.
-
-Current levels:
+Current Grid Confidence thresholds:
 
 ```text
 90–100%  → normal
@@ -412,26 +486,106 @@ Current levels:
 0–30%    → panic
 ```
 
-Grid Confidence influences Decision Engine recommendations and battery strategy.
+Grid Confidence is calculated from rolling 48-hour Grid Availability.
 
-It does not directly change the operating mode.
+Grid Reliability influences:
 
-Example:
+- Battery Strategy;
+- charging recommendations;
+- battery reserve recommendations;
+- future Operating Mode recommendations.
+
+Grid Reliability does not directly change Operating Mode.
+
+The Decision Engine consumes Grid Confidence as an input.
+
+It does not calculate or own Grid History.
+
+Architecture:
 
 ```text
-Operating Mode: Winter
-
-Grid Confidence: unstable
-
-Battery Strategy:
-Increase reserve and consider night tariff charging.
+Grid Monitor
+      │
+      ▼
+Grid History
+      │
+      ▼
+Grid Stability Engine
+      │
+      ▼
+Grid Confidence
+      │
+      ▼
+Decision Engine
 ```
 
-Daily Grid Availability and Grid Confidence are separate concepts.
+---
 
-Daily Grid Availability is a historical daily fact stored by the Daily Summary Engine.
+# Battery Health
 
-Grid Confidence is a current operational assessment produced by the Grid Stability Engine.
+Battery Health is independent from Battery Strategy.
+
+The Battery Health Monitor should detect abnormal battery behaviour and provide stable health information to the Decision Engine.
+
+Initial Battery Health feature:
+
+```text
+SOC Jump Detection
+```
+
+Initial detection concept:
+
+```text
+SOC change >= 3%
+→ warning
+
+SOC change >= 10%
+→ critical
+```
+
+Thresholds require validation against real battery behaviour.
+
+Recent abnormal SOC behaviour included:
+
+```text
+53% → 1%
+33% → 100%
+```
+
+Future Battery Health inputs may include:
+
+- Battery SOC;
+- Battery Current;
+- Battery Voltage;
+- individual cell voltages;
+- minimum cell voltage;
+- maximum cell voltage;
+- cell voltage delta;
+- battery temperatures;
+- BMS alarms;
+- protection states;
+- balancing status.
+
+Target architecture:
+
+```text
+PowMr Telemetry ────────┐
+                        │
+                        ▼
+                Battery Health Monitor
+                        │
+                        ▼
+                  Battery Health
+                        │
+                        ▼
+                  Decision Engine
+
+JK BMS Adapter ─────────┘
+```
+
+The Decision Engine should consume Battery Health information.
+
+It should not directly interpret JK BMS protocol data.
 
 ---
 
@@ -439,17 +593,17 @@ Grid Confidence is a current operational assessment produced by the Grid Stabili
 
 When objectives conflict, EnergyHub follows these priorities:
 
-1. Safety
-2. House protection
-3. Occupant comfort
-4. Grid resilience
-5. Energy independence
-6. Cost optimization
-7. Solar utilization
+1. Safety.
+2. House protection.
+3. Occupant comfort.
+4. System reliability.
+5. Grid resilience.
+6. Battery health.
+7. Energy independence.
+8. Cost optimization.
+9. Solar utilization.
 
-These priorities are intentionally ordered.
-
-EnergyHub should never sacrifice safety, house protection or reasonable occupant comfort only to improve energy statistics.
+Safety and reliable system operation always have priority over optimization.
 
 ---
 
@@ -458,210 +612,164 @@ EnergyHub should never sacrifice safety, house protection or reasonable occupant
 Flexible loads may include:
 
 - Heat pumps;
-- boiler;
+- Boiler;
 - EV charging;
-- smart plugs.
+- Smart plugs.
 
-EnergyHub determines when these loads should be recommended or permitted to operate.
+The Decision Engine determines when these loads should be allowed or encouraged to operate.
 
-Flexible-load decisions may consider:
+The Decision Engine should initially produce intentions.
 
-- current operating mode;
+Example:
+
+```text
+Recommendation:
+Enable flexible loads.
+
+Reason:
+Battery SOC is high and significant solar surplus is forecast.
+```
+
+Device-specific services translate these intentions into future hardware actions.
+
+---
+
+# Daily Decision Cycle
+
+Every day EnergyHub performs a complete evaluation.
+
+Inputs may include:
+
 - Battery SOC;
+- Battery Health;
 - Grid Confidence;
-- Solar Forecast;
-- Daily Solar Surplus history;
-- electricity tariff;
-- household occupancy;
-- user preferences.
+- Solar Forecast Today;
+- Solar Forecast Tomorrow;
+- House Consumption Previous Day;
+- Solar Surplus Previous Day;
+- Indoor temperatures;
+- Outdoor temperature;
+- Electricity tariff;
+- Current Operating Mode;
+- Manual overrides.
 
-The Decision Engine produces intentions.
+The Decision Engine then determines:
 
-The device control layer executes device-specific actions.
+- Recommended Operating Mode;
+- Battery Strategy;
+- Heating Strategy;
+- Flexible Load Strategy;
+- Recommended Actions.
+
+The selected recommendation remains active until the next evaluation or until significant new information requires reevaluation.
+
+Future versions may support event-driven reevaluation when important system state changes occur.
 
 ---
 
 # Daily Summary Engine
 
-The Daily Summary Engine is a separate EnergyHub service.
+The Daily Summary Engine runs once per day before daily source sensors reset.
 
-Status:
+Responsibilities:
 
-```text
-v1 Complete
-```
+- Store House Consumption.
+- Store Solar Forecast.
+- Store Solar Surplus Estimated.
+- Store Grid Availability.
+- Publish historical MQTT sensors.
+- Maintain persistent daily history.
 
-Its purpose is to create stable historical daily facts for:
+Purpose:
 
-- dashboards;
-- historical analysis;
-- future Decision Engine evaluations.
+Provide stable daily historical facts for dashboards and future Decision Engine analytics.
 
-Current responsibilities:
-
-- store Daily House Consumption;
-- store Daily Solar Forecast;
-- store Daily Solar Surplus Estimated;
-- store Daily Grid Availability;
-- persist daily history;
-- publish EnergyHub Daily Summary MQTT sensors.
-
-Current persistence:
+Architecture:
 
 ```text
-/data/daily_summary.json
+Home Assistant
+      │
+      ▼
+Daily Summary Inputs
+      │
+      ▼
+Daily Summary Engine
+      │
+      ├── Persistent History
+      │
+      └── MQTT Sensors
+               │
+               ▼
+         Decision Engine
 ```
 
-Current EnergyHub entities:
+The Decision Engine consumes Daily Summary facts.
 
-```text
-sensor.energyhub_daily_house_consumption
-sensor.energyhub_daily_solar_forecast
-sensor.energyhub_daily_solar_surplus_estimated
-sensor.energyhub_daily_grid_availability
-```
-
-The Daily Summary Engine receives selected Home Assistant values through retained MQTT messages.
-
-Current input topics:
-
-```text
-energyhub/input/ha/daily_house_consumption
-energyhub/input/ha/solar_forecast_today
-energyhub/input/ha/daily_solar_surplus_estimated
-```
-
-The Daily Summary Engine is idempotent.
-
-Retained MQTT messages received after EnergyHub restart do not cause unnecessary snapshot writes when stored values are unchanged.
-
----
-
-# Daily Solar Surplus Estimated
-
-Daily Solar Surplus Estimated represents solar energy that was probably available but not used during the day.
-
-Formula:
-
-```text
-max(0, Solcast Forecast Today - Daily House Consumption)
-```
-
-The value is intentionally based on Solcast forecast rather than inverter PV telemetry.
-
-The PowMr inverter exposes PV1 telemetry only and does not provide reliable total PV1 + PV2 generation.
-
-Daily Solar Surplus Estimated is useful for:
-
-- historical analysis;
-- identifying unused solar potential;
-- future flexible-load planning;
-- future EV charging strategy;
-- Decision Engine context.
-
-It is an estimate and should not be interpreted as meter-accurate unused solar energy.
-
----
-
-# Daily Grid Import Estimated
-
-Daily Grid Import Estimated is deferred.
-
-The PowMr inverter does not expose a reliable accumulated grid import counter.
-
-A future EnergyHub version may estimate grid import during controlled grid-charging sessions.
-
-The initial estimation model may assume:
-
-- grid charging is intentionally enabled;
-- charging normally occurs at night;
-- PV generation during the charging period is zero;
-- Battery SOC change is known;
-- house consumption during the charging period is known.
-
-Daytime Grid Import during Panic Mode may not be included.
-
-Daily Grid Import Estimated is intended for:
-
-- historical statistics;
-- cost analysis;
-- informational dashboards.
-
-It must not be used as an authoritative Decision Engine input.
-
----
-
-# Explainable Decisions
-
-Explainability is a core EnergyHub requirement.
-
-The Decision Engine should never publish only:
-
-```text
-Mode: Winter
-```
-
-It should provide context.
-
-Example:
-
-```text
-Operating Mode:
-Winter
-
-Reason:
-
-Solar Forecast Tomorrow: 6.2 kWh
-Battery SOC: 42%
-Grid Confidence: unstable
-Night Tariff begins in 3 hours
-
-Decision:
-
-Charge battery tonight.
-
-Target:
-
-80% SOC
-```
-
-Every significant recommendation should include:
-
-- relevant inputs;
-- evaluated conditions;
-- selected strategy;
-- recommended action;
-- reason for the recommendation.
-
-The homeowner should be able to understand EnergyHub behaviour without reading logs or source code.
+It does not create historical data.
 
 ---
 
 # Notifications
 
-EnergyHub communicates important decisions.
+EnergyHub communicates important decisions and abnormal system conditions.
 
 Examples:
 
-- Operating mode changed.
+- Operating Mode recommendation changed.
+- Current Mode differs from Recommended Mode.
 - Grid Confidence decreased.
-- Battery reserve increased.
-- Night charging recommended.
-- Panic Mode recommended.
-- Manual action recommended.
+- Battery reserve should be increased.
+- Night charging is recommended.
+- Manual action is recommended.
+- Abnormal Battery SOC change detected.
+- Battery Health degraded.
+- Inverter warning or fault detected.
 - Recovery action performed.
 
-Notifications should explain the reason behind important decisions.
+Notifications should explain the reason behind every significant recommendation or action.
 
-The notification system may initially use Home Assistant.
+Example:
 
-A future Telegram Bot may provide:
+```text
+Recommendation:
+Increase battery reserve.
 
-- status;
-- alerts;
-- notifications;
-- Decision Engine recommendations;
-- explanations.
+Reason:
+Grid Confidence changed from normal to unstable and tomorrow's solar forecast is low.
+```
+
+---
+
+# Inverter Health
+
+Future Decision Engine versions may consume Inverter Health information.
+
+Possible inputs:
+
+- Communication Status;
+- inverter warnings;
+- inverter faults;
+- unexpected inverter restart information.
+
+The Decision Engine should not directly query PI30MAX warning or fault commands.
+
+Architecture:
+
+```text
+PowMr Adapter
+      │
+      ▼
+Inverter Health Monitor
+      │
+      ├── Health State
+      ├── MQTT Sensors
+      └── Alerts
+               │
+               ▼
+         Decision Engine
+```
+
+Hardware communication and health analysis should remain separate from decision logic.
 
 ---
 
@@ -669,17 +777,17 @@ A future Telegram Bot may provide:
 
 Future versions may incorporate:
 
-- weather forecast;
-- additional Solcast forecast data;
-- dynamic electricity pricing;
+- Weather forecast;
+- Solcast forecast;
+- Dynamic electricity pricing;
 - EV battery SOC;
-- calendar information;
-- occupancy prediction;
-- historical household behaviour.
+- Calendar information;
+- Occupancy prediction;
+- Historical household behaviour;
+- direct BMS information through Battery Health Monitor;
+- Inverter Health information.
 
-The Decision Engine should remain extensible without requiring architectural redesign.
-
-New inputs should be added through services or defined interfaces rather than direct dependencies on Home Assistant entities or hardware-specific protocols.
+The Decision Engine should remain extensible without requiring architectural changes.
 
 ---
 
@@ -692,84 +800,186 @@ The Decision Engine produces intentions.
 Example:
 
 ```text
-Maintain battery above 80%
+Maintain battery above 80%.
 ```
 
 rather than:
 
 ```text
-Execute inverter command XYZ
+Execute inverter command XYZ.
 ```
 
-Hardware adapters and future device control services translate intentions into device-specific commands.
+Another example:
+
+```text
+Enable scheduled grid charging.
+```
+
+rather than:
+
+```text
+Change PowMr charging-source mode to SNU.
+```
+
+Hardware adapters and control services translate intentions into device-specific commands.
+
+Architecture:
+
+```text
+System Facts
+      │
+      ▼
+Decision Engine
+      │
+      ▼
+Intentions
+      │
+      ▼
+Control Services
+      │
+      ▼
+Hardware Adapters
+      │
+      ▼
+Devices
+```
 
 This separation allows:
 
-- hardware replacement;
-- easier testing;
-- explainable behaviour;
-- progressive automation;
-- safer failure handling.
+- hardware independence;
+- safer testing;
+- explainable decisions;
+- easier future hardware support;
+- clear responsibility boundaries.
+
+---
+
+# Explainability Principle
+
+The homeowner should always be able to understand:
+
+```text
+What is EnergyHub doing?
+
+Why is EnergyHub doing it?
+
+What information caused the decision?
+
+What will happen next?
+```
+
+The intended dashboard relationship is:
+
+```text
+EnergyHub Status
+      │
+      └── Current Mode
+
+EnergyHub Intelligence
+      │
+      ├── Recommended Mode
+      ├── Recommendation
+      ├── Reason
+      └── Recommended Action
+```
+
+EnergyHub should never silently make significant operational changes without maintaining enough information to explain the reason.
+
+---
+
+# Validation Principle
+
+Real-system observations have priority over assumptions about inverter behaviour.
+
+Example:
+
+The initial charging-source strategy considered:
+
+```text
+OSO ↔ CSO
+```
+
+Real-system CSO testing showed that utility charging significantly decreased when PV generation started.
+
+The strategy was therefore reconsidered as:
+
+```text
+OSO ↔ SNU
+```
+
+SNU remains pending real-system validation.
+
+The general development principle is:
+
+```text
+Hypothesis
+    ↓
+Implementation or Manual Test
+    ↓
+Real-System Observation
+    ↓
+Validation
+    ↓
+Architecture Decision
+    ↓
+Documentation
+```
+
+Unvalidated assumptions must be clearly identified as hypotheses.
 
 ---
 
 # Development Strategy
 
-Decision Engine development should follow the standard EnergyHub workflow:
+Decision Engine development should progress through controlled stages.
 
-```text
-Architecture
+## Stage 1 — Reliable Facts
 
-↓
+EnergyHub services create stable operational and historical facts.
 
-Implement
+Examples:
 
-↓
+- Telemetry;
+- Communication Health;
+- Grid History;
+- Grid Confidence;
+- Daily Summary;
+- Battery Health;
+- Inverter Health.
 
-Deploy
+## Stage 2 — Recommendations
 
-↓
+Decision Engine produces:
 
-Test on Real System
+- Recommended Mode;
+- Recommendation;
+- Reason;
+- Recommended Action.
 
-↓
+No automatic execution.
 
-Document
+## Stage 3 — Observation and Validation
 
-↓
+Recommendations are compared against real household behaviour.
 
-Commit
-```
+Incorrect or unnecessary recommendations are investigated and improved.
 
-Decision Engine v1 should begin only after the Recovery Strategy investigation.
+## Stage 4 — Controlled Automation
 
-The initial implementation should remain recommendation-only.
+Selected low-risk decisions may be executed automatically.
 
-Recommendations should be observed and validated against real household behaviour before automatic execution is introduced.
+Every automatic action must remain explainable and observable.
 
----
+## Stage 5 — Advanced Optimization
 
-# Current Status
+Future capabilities may include:
 
-```text
-Foundation             Complete
-
-Daily Summary Engine   v1 Complete
-
-Recovery Strategy      Next
-
-Decision Engine        Planned
-```
-
-The next milestone is to investigate recovery behaviour for:
-
-- MQTT failures;
-- network failures;
-- serial communication failures;
-- `mpp-solar` timeouts or blocking;
-- Home Assistant connectivity failures.
-
-Only after the recovery architecture is understood should Decision Engine v1 implementation begin.
+- predictive battery management;
+- heating optimization;
+- EV charging optimization;
+- dynamic tariffs;
+- occupancy prediction;
+- historical behaviour analysis.
 
 ---
 
@@ -779,19 +989,20 @@ EnergyHub should behave like an experienced energy manager.
 
 It should continuously balance:
 
+- safety;
+- house protection;
 - comfort;
+- reliability;
+- grid resilience;
+- battery health;
+- energy independence;
 - cost;
-- resilience;
-- sustainability.
+- solar utilization.
 
-It should remain:
-
-- transparent;
-- predictable;
-- understandable;
-- modular;
-- explainable.
+while remaining transparent, predictable and understandable to the homeowner.
 
 The homeowner should always be able to answer:
 
 > "Why did EnergyHub make this decision?"
+
+EnergyHub should evolve carefully from monitoring to reliable facts, from reliable facts to recommendations, and only then from recommendations to validated automation.

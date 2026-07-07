@@ -1,6 +1,6 @@
 # EnergyHub Project State
 
-Last Updated: 2026-07-05
+Last Updated: 2026-07-06
 
 ---
 
@@ -53,31 +53,110 @@ Current EnergyHub Core modules:
 Future modules:
 
 - Decision Engine
+- Battery Health Monitor
 - Notification Engine
 - Forecast Engine
 - Device Manager
+- BMS Adapter
 - Telegram Bot
 
 ---
 
 # Current Features Implemented
 
-✅ PowMr telemetry
-✅ MQTT Discovery
-✅ Telemetry validation
-✅ Communication Watchdog
-✅ Health Monitor
-✅ Grid History
-✅ Grid Availability
-✅ Grid Stability Engine
-✅ Family Dashboard v1
-✅ Developer Dashboard improvements
-✅ Daily Energy Statistics dashboard
-✅ Floor 3 Heat Pump Auto-Off
-✅ House Model
-✅ Daily Solar Surplus Estimated
-✅ Daily Summary MQTT input path
-✅ Daily Summary Engine v1
+✅ PowMr telemetry  
+✅ MQTT Discovery  
+✅ Telemetry validation  
+✅ Communication Watchdog  
+✅ Health Monitor  
+✅ Grid History  
+✅ Grid Availability  
+✅ Grid Stability Engine  
+✅ Family Dashboard v1  
+✅ Developer Dashboard improvements  
+✅ Daily Energy Statistics dashboard  
+✅ EnergyHub Status dashboard card  
+✅ EnergyHub Intelligence dashboard card  
+✅ Floor 3 Heat Pump Auto-Off  
+✅ House Model  
+✅ Daily Solar Surplus Estimated  
+✅ Daily Summary MQTT input path  
+✅ Daily Summary Engine v1  
+
+---
+
+# Current Dashboard Architecture
+
+The EnergyHub Developer Dashboard now separates current operational state from information used for analysis and future decisions.
+
+## EnergyHub Status
+
+Purpose:
+
+```text
+What is happening now?
+
+Is the system healthy?
+```
+
+Current information:
+
+- Communication Status
+- Battery SOC
+- Battery Charging Current
+- Battery Discharge Current
+- House Load
+- PV1 Power
+- Grid Voltage
+
+Future:
+
+- Current Operating Mode
+- prominent Operating Mode visualization
+- consistent Operating Mode colors
+- unified signed Battery Current sensor if useful
+- Battery Health status
+- Inverter Health status
+
+---
+
+## EnergyHub Intelligence
+
+Purpose:
+
+```text
+What does EnergyHub know?
+
+What information is available for decisions?
+```
+
+Current information:
+
+- Grid Confidence
+- Grid Available 24h
+- Grid Available 48h
+- Consumption Yesterday
+- Solar Surplus Yesterday
+- Solar Forecast Today
+- Solar Forecast Tomorrow
+
+Grid Confidence is displayed prominently using:
+
+```text
+🟢 NORMAL
+🟡 UNSTABLE
+🟠 RISK
+🔴 PANIC
+```
+
+Future:
+
+- Recommended Mode
+- Recommendation
+- Reason
+- Recommended Action
+
+When Current Mode and Recommended Mode differ, EnergyHub Intelligence should clearly explain why.
 
 ---
 
@@ -85,13 +164,16 @@ Future modules:
 
 ## Developer Dashboard
 
-Contains technical and operational diagnostics:
+Contains technical, operational and decision-support information:
 
 - PowMr telemetry
 - Battery state
 - Grid state
 - Communication status
-- Grid confidence
+- EnergyHub Status
+- EnergyHub Intelligence
+- Grid Confidence
+- Grid Availability
 - Daily energy statistics
 - Smart plug / heat pump visibility
 
@@ -134,6 +216,96 @@ Because of this:
 
 ---
 
+# Current Inverter Charging-Source Modes
+
+The current PowMr firmware exposes three usable charging-source modes:
+
+```text
+OSO
+CSO
+SNU
+```
+
+`CUB` is not available on the current inverter firmware.
+
+## OSO
+
+Only Solar.
+
+Current intended use:
+
+```text
+Summer Mode
+```
+
+Battery charging is performed from solar energy only.
+
+## CSO
+
+Solar First.
+
+Real-system testing showed that CSO is not suitable for planned continuous grid charging.
+
+Observed behavior:
+
+```text
+Night
+PV = 0
+Utility charging active
+
+↓
+
+PV generation begins
+
+↓
+
+Utility charging current significantly decreases
+```
+
+Because of this behavior, CSO is no longer the primary candidate for Winter scheduled charging or Panic charging.
+
+## SNU
+
+SNU is the current candidate for simultaneous utility and solar charging.
+
+Possible future use:
+
+```text
+Winter scheduled grid charging
+Panic charging
+```
+
+Expected strategy:
+
+```text
+Summer
+→ OSO
+
+Winter scheduled grid charging
+→ SNU
+
+Panic charging
+→ SNU
+```
+
+SNU behavior must be validated through additional real-system testing before this strategy is considered final.
+
+The planned charging-source strategy is therefore currently:
+
+```text
+OSO ↔ SNU
+```
+
+rather than the previously considered:
+
+```text
+OSO ↔ CSO
+```
+
+This remains pending completion of SNU real-system testing.
+
+---
+
 # Current Daily Summary Model
 
 Daily Summary Engine v1 is implemented inside EnergyHub.
@@ -142,7 +314,7 @@ Home Assistant provides selected daily values through retained MQTT input topics
 
 EnergyHub consumes these inputs, stores a daily snapshot, and republishes EnergyHub-owned MQTT sensors for dashboards and future engines.
 
-## Home Assistant source values
+## Home Assistant Source Values
 
 - Daily House Consumption
 - Solcast Forecast Today
@@ -353,28 +525,197 @@ Grid History Service
 
 ---
 
+# Battery Health Monitoring
+
+Status:
+
+```text
+Planned
+```
+
+Recent real-system battery behavior demonstrated the need for dedicated Battery Health monitoring.
+
+Observed abnormal SOC changes included:
+
+```text
+53% → 1%
+33% → 100%
+```
+
+The first Battery Health feature should detect abnormal SOC changes between telemetry updates.
+
+Initial detection concept:
+
+```text
+SOC change >= 3%
+→ warning
+
+SOC change >= 10%
+→ critical
+```
+
+These thresholds require validation against real battery behavior.
+
+Future Battery Health responsibilities may include:
+
+- SOC jump detection;
+- Battery Health status;
+- latest SOC anomaly information;
+- anomaly persistence;
+- Battery Health MQTT sensors;
+- notifications;
+- direct BMS data integration.
+
+Possible future architecture:
+
+```text
+PowMr Telemetry ────────┐
+                        │
+                        ▼
+                Battery Health Monitor
+                        │
+                        ├── Health State
+                        ├── MQTT Sensors
+                        ├── Alerts
+                        └── Decision Engine Inputs
+
+JK BMS Adapter ─────────┘
+```
+
+The Battery Health Monitor should not depend directly on JK BMS protocol implementation.
+
+Hardware communication and Battery Health analysis should remain separate responsibilities.
+
+---
+
+# JK BMS Integration
+
+Status:
+
+```text
+Paused
+```
+
+Priority:
+
+```text
+Medium
+```
+
+A previous attempt to integrate JK BMS telemetry directly into EnergyHub was paused after communication issues.
+
+The integration should be revisited after the current reliability and Decision Engine foundation work.
+
+Target timeframe:
+
+```text
+Approximately 1–2 weeks
+```
+
+Required data:
+
+- individual cell voltages;
+- minimum cell voltage;
+- maximum cell voltage;
+- cell voltage delta;
+- Battery Current;
+- Battery Voltage;
+- Battery SOC;
+- battery temperatures;
+- BMS alarms and protection states;
+- balancing status.
+
+Purpose:
+
+- detect cell imbalance;
+- detect abnormal SOC behavior;
+- monitor battery health;
+- improve battery diagnostics;
+- generate Battery Health alerts;
+- provide reliable battery information for the future Decision Engine.
+
+Target architecture:
+
+```text
+JK BMS
+    │
+    ▼
+BMS Adapter
+    │
+    ▼
+Battery Health Monitor
+    │
+    ├── MQTT Sensors
+    ├── Health Alerts
+    └── Decision Engine Inputs
+```
+
+JK BMS protocol handling must remain separate from Battery Health analysis.
+
+The BMS Adapter should translate hardware-specific data into a stable EnergyHub battery data model.
+
+---
+
+# Inverter Health Monitoring
+
+Status:
+
+```text
+Research Required
+```
+
+An unexpected inverter restart demonstrated the need to investigate available inverter warning and fault information.
+
+Future investigation should include:
+
+- PI30MAX warning information;
+- `QPIWS`;
+- additional supported warning or fault commands;
+- detection of unexpected inverter restarts where possible;
+- persistence of latest warning or fault information;
+- MQTT health entities;
+- notifications.
+
+Possible future entities:
+
+```text
+sensor.energyhub_inverter_warning_status
+sensor.energyhub_inverter_last_warning
+binary_sensor.energyhub_inverter_fault
+```
+
+Inverter Health Monitoring belongs to the EnergyHub reliability and health architecture.
+
+---
+
 # Current Priorities
 
-1. Reliability
-2. Recovery strategy
+1. Reliability and Recovery Strategy
+2. Battery Health / SOC Jump Detection
 3. Decision Engine v1
 4. Explainable decisions
-5. Telegram notifications
+5. JK BMS Integration
+6. Inverter Health Monitoring
+7. Telegram notifications
 
 ---
 
 # Immediate Roadmap
 
-- Complete Daily Summary Engine documentation.
-- Investigate recovery strategy for network, MQTT and serial communication failures.
+- Complete documentation updates for 2026-07-06.
+- Complete real-system SNU charging behavior testing.
+- Investigate Recovery Strategy for network, MQTT and serial communication failures.
 - Determine why EnergyHub telemetry previously stopped after a network connectivity problem.
-- Design recovery behavior instead of blindly restarting services.
+- Design targeted recovery behavior instead of blindly restarting services.
+- Implement initial Battery SOC jump detection.
 - Begin Decision Engine v1.
 - Add recommendation-only operating modes:
   - Summer
   - Winter
   - Away
   - Panic
+- Revisit JK BMS integration after the current reliability and Decision Engine foundation work.
+- Investigate inverter warning and fault telemetry.
 
 ---
 
@@ -387,6 +728,8 @@ Home Assistant remains the integration platform.
 Devices become interchangeable hardware adapters.
 
 EnergyHub services create reliable facts and operational state.
+
+Health services detect abnormal system and battery behavior.
 
 The Decision Engine consumes those facts and produces explainable recommendations and, later, automated actions.
 
@@ -463,11 +806,145 @@ sensor.energyhub_daily_grid_availability
 - Daily Grid Availability and Grid Confidence remain separate concepts.
 - Decision Engine should consume Daily Summary Engine data rather than create historical facts.
 
-## Next Milestone
+---
 
-Investigate recovery strategy for MQTT, network and serial communication failures.
+# 2026-07-06
 
-After the recovery architecture is understood, begin Decision Engine v1.
+## Completed
+
+- Energy Statistics dashboard card updated.
+- Historical Daily Summary values remain in the 7-day chart.
+- Live `Consumption Today` added to the Energy Statistics header.
+- Developer Dashboard monitoring split into two distinct cards:
+  - EnergyHub Status
+  - EnergyHub Intelligence
+- EnergyHub Status card updated with:
+  - Communication Status
+  - Battery SOC
+  - Battery Charging Current
+  - Battery Discharge Current
+  - House Load
+  - PV1 Power
+  - Grid Voltage
+- EnergyHub Intelligence card updated with:
+  - prominent dynamic Grid Confidence status;
+  - Grid Available 24h;
+  - Grid Available 48h;
+  - Consumption Yesterday;
+  - Solar Surplus Yesterday;
+  - Solar Forecast Today;
+  - Solar Forecast Tomorrow.
+- Historical Solar Forecast Yesterday removed from EnergyHub Intelligence.
+- Dynamic Grid Confidence visualization added:
+
+```text
+🟢 NORMAL
+🟡 UNSTABLE
+🟠 RISK
+🔴 PANIC
+```
+
+## Real-System Findings
+
+### Battery SOC Behavior
+
+Abnormal Battery SOC changes were observed:
+
+```text
+53% → 1%
+33% → 100%
+```
+
+This identified the need for dedicated Battery Health monitoring and SOC jump detection.
+
+### Inverter Charging-Source Modes
+
+The current PowMr firmware exposes:
+
+```text
+OSO
+CSO
+SNU
+```
+
+`CUB` is not available.
+
+Real-system CSO testing showed:
+
+```text
+PV = 0
+→ utility charging active
+
+PV generation begins
+→ utility charging current significantly decreases
+```
+
+Because of this behavior, CSO is no longer the primary candidate for planned Winter or Panic grid charging.
+
+SNU is now the candidate charging-source mode for:
+
+```text
+Winter scheduled grid charging
+Panic charging
+```
+
+SNU behavior remains pending additional real-system testing.
+
+### Unexpected Inverter Restart
+
+An unexpected inverter restart identified the need to investigate available inverter warning and fault information.
+
+Future investigation should include PI30MAX warning and fault commands, including `QPIWS`.
+
+## Decisions
+
+- Developer Dashboard information is separated into two responsibilities:
+
+```text
+EnergyHub Status
+→ current operational state
+→ system health
+
+EnergyHub Intelligence
+→ information available for decisions
+→ future recommendations and explanations
+```
+
+- Current Operating Mode should eventually be displayed prominently in EnergyHub Status.
+- Future Operating Mode colors should remain consistent:
+  - Summer → orange;
+  - Winter → dark blue;
+  - Panic → warning pink/red;
+  - Away → gray.
+- Recommended Mode, Reason and Recommended Action should eventually be displayed in EnergyHub Intelligence.
+- Separate Battery Charging Current and Battery Discharge Current sensors remain on the Status card for now.
+- A unified signed Battery Current sensor is deferred as a future improvement.
+- Battery SOC jump detection should be added to Battery Health monitoring.
+- Direct JK BMS integration should be revisited in approximately 1–2 weeks.
+- JK BMS protocol handling and Battery Health analysis must remain separate architectural responsibilities.
+- Inverter warning and fault monitoring requires investigation.
+- The planned inverter charging-source strategy is being reconsidered from:
+
+```text
+OSO ↔ CSO
+```
+
+to:
+
+```text
+OSO ↔ SNU
+```
+
+pending completion of SNU real-system testing.
+
+## Validation
+
+- Verified updated Energy Statistics dashboard behavior.
+- Verified live Consumption Today display.
+- Verified separation of EnergyHub Status and EnergyHub Intelligence.
+- Verified dynamic Grid Confidence visualization.
+- Verified Battery Charging Current and Battery Discharge Current display.
+- Performed initial real-system CSO charging behavior test.
 
 ---
 
@@ -527,6 +1004,24 @@ Goals:
 - avoid unnecessary blind restarts;
 - add recovery grace periods where appropriate.
 
+## Battery Health Monitoring
+
+Status: Planned
+
+Initial goal:
+
+```text
+Detect abnormal Battery SOC jumps between telemetry updates.
+```
+
+Future goals:
+
+- Battery Health state;
+- anomaly persistence;
+- MQTT sensors;
+- notifications;
+- JK BMS data integration.
+
 ## Decision Engine
 
 Status: Planned
@@ -543,6 +1038,28 @@ Panic
 Initial implementation should be recommendation-only.
 
 Automatic control should be introduced progressively after recommendations are validated against real household behavior.
+
+## JK BMS Integration
+
+Status: Paused / Revisit
+
+Target:
+
+```text
+Approximately 1–2 weeks
+```
+
+Goal:
+
+Provide direct cell-level battery information to the future Battery Health Monitor.
+
+## Inverter Health Monitoring
+
+Status: Research Required
+
+Goal:
+
+Investigate inverter warning, fault and unexpected restart information available through PI30MAX.
 
 ---
 
@@ -591,7 +1108,7 @@ First determine:
 7. Which failures can EnergyHub detect automatically?
 8. Which failures can EnergyHub recover from safely?
 
-After investigation:
+After the Recovery Strategy investigation:
 
 - document the recovery architecture;
 - implement only justified recovery mechanisms;
@@ -599,4 +1116,59 @@ After investigation:
 - test on the real system;
 - commit.
 
+In parallel with the next development milestones:
+
+- complete real-system SNU charging behavior testing;
+- implement initial Battery SOC jump detection;
+- investigate inverter warning and fault telemetry;
+- revisit JK BMS integration in approximately 1–2 weeks.
+
 After the Recovery Strategy milestone, begin Decision Engine v1.
+
+The initial Decision Engine should remain recommendation-only.
+
+Future automatic inverter control should be introduced progressively only after:
+
+- Decision Engine recommendations have been validated;
+- SNU charging behavior has been confirmed;
+- inverter control commands have been tested safely;
+- recovery behavior is understood.
+
+---
+
+# Immediate Next Actions
+
+```text
+1. Complete documentation updates
+2. Commit dashboard and documentation changes
+3. Test SNU charging behavior on the real inverter
+4. Investigate Recovery Strategy
+5. Implement Battery SOC jump detection
+6. Begin Decision Engine v1
+7. Revisit JK BMS integration
+8. Investigate Inverter Health telemetry
+```
+
+---
+
+# Project Principle
+
+EnergyHub should evolve from:
+
+```text
+Monitoring
+    ↓
+Reliable Facts
+    ↓
+Health Awareness
+    ↓
+Recommendations
+    ↓
+Explainable Decisions
+    ↓
+Carefully Validated Automation
+```
+
+The system should not automate behavior simply because automation is technically possible.
+
+Every automated decision should be based on reliable facts, observable system behavior and validated real-world experience.

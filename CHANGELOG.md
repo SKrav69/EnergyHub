@@ -1,6 +1,66 @@
 # Changelog
 
-## 2026-07-05
+## 2026-07-06
+
+### Changed
+
+- Updated Energy Statistics dashboard card.
+- Separated historical Daily Summary values from live current-day values.
+- Added live `Consumption Today` to the Energy Statistics header.
+- Historical Daily House Consumption remains displayed in the 7-day chart as completed-day data.
+- Redesigned EnergyHub dashboard monitoring into two separate responsibilities:
+  - `EnergyHub Status` — current operational state and system health.
+  - `EnergyHub Intelligence` — information available for monitoring and future Decision Engine decisions.
+- Updated EnergyHub Status card with:
+  - Communication Status
+  - Battery SOC
+  - Battery Charging Current
+  - Battery Discharge Current
+  - House Load
+  - PV1 Power
+  - Grid Voltage
+- Updated EnergyHub Intelligence card.
+- Removed historical Solar Forecast Yesterday from EnergyHub Intelligence.
+- Added rolling 24-hour and 48-hour Grid Availability information.
+- Added prominent dynamic Grid Confidence visualization:
+  - `normal` → 🟢 NORMAL
+  - `unstable` → 🟡 UNSTABLE
+  - `risk` → 🟠 RISK
+  - `panic` → 🔴 PANIC
+
+### Improved
+
+- Clarified dashboard responsibilities between current operational monitoring and information used for future decision-making.
+- Improved visibility of battery charging and discharging behavior.
+- Improved Grid Confidence visibility and interpretation.
+- Reduced duplicated information between EnergyHub dashboard cards.
+
+### Findings
+
+- Real-system testing showed that `CSO` is not suitable for planned continuous grid charging.
+- During CSO testing, utility charging operated at night while PV generation was zero.
+- When PV generation started, even at very low power, utility charging current dropped significantly.
+- `SNU` was identified as the candidate charging-source mode for future Winter scheduled charging and Panic charging.
+- SNU behavior with simultaneous PV and utility charging requires additional real-system validation.
+- The PowMr firmware exposes three usable charging-source modes:
+  - `OSO`
+  - `CSO`
+  - `SNU`
+- `CUB` is not available on the current inverter firmware.
+- An unexpected inverter restart identified the need to investigate available inverter warning and fault information.
+
+### Architecture Decisions
+
+- EnergyHub dashboards now follow two distinct concepts:
+
+```text
+EnergyHub Status
+→ What is happening now?
+→ Is the system healthy?
+
+EnergyHub Intelligence
+→ What does EnergyHub know?
+→ What information is available for decisions?
 
 ### Added
 
@@ -26,51 +86,3 @@
 
 ```text
 max(0, Solcast Forecast Today - Daily House Consumption)
-```
-
-- Updated the 23:50 Home Assistant snapshot automation for the new Solar Surplus terminology and calculation.
-- Migrated the Energy Statistics dashboard from Home Assistant source/helper entities to EnergyHub-owned Daily Summary sensors.
-- Changed Grid Confidence calculation to use rolling 48-hour grid availability percentages:
-  - `90–100%` → `normal`
-  - `60–90%` → `unstable`
-  - `30–60%` → `risk`
-  - `0–30%` → `panic`
-
-### Improved
-
-- Daily Summary snapshot processing is idempotent.
-- Retained MQTT messages received after EnergyHub restart no longer cause unnecessary snapshot writes when values are unchanged.
-- Separated operational Grid Confidence from historical Daily Grid Availability.
-- Clarified ownership boundaries between Home Assistant, Daily Summary Engine and future Decision Engine.
-
-### Architecture Decisions
-
-- Home Assistant owns Daily Summary snapshot timing for now.
-- EnergyHub owns the Daily Summary data model, persistence and published sensors.
-- Daily Solar Surplus Estimated uses Solcast forecast rather than incomplete inverter PV telemetry.
-- Daily Grid Import Estimated is deferred to a future controlled grid-charging model.
-- Daily Grid Import Estimated will be informational only and must not be used as an authoritative Decision Engine input.
-- Decision Engine will consume Daily Summary facts rather than create historical data.
-
-### Validation
-
-- Deployed and tested Daily Summary Engine on the real EnergyHub system.
-- Verified retained MQTT input delivery.
-- Verified Daily Summary persistence.
-- Verified MQTT Discovery and all four new Home Assistant entities.
-- Verified dashboard migration.
-- Verified idempotent behavior after EnergyHub rebuild and restart.
-
----
-
-## v0.1 Foundation
-
-- Project philosophy
-- Manifesto
-- Vision
-- Design philosophy
-- Development principles
-- System architecture
-- Initial roadmap
-- Initial backlog
-- Repository structure

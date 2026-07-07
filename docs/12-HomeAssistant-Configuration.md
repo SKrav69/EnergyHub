@@ -55,8 +55,6 @@ was renamed to:
 Daily Solar Surplus Estimated
 ```
 
-The new name better reflects the actual meaning of the value.
-
 The calculation intentionally uses Solcast forecast rather than inverter PV generation.
 
 The PowMr inverter exposes PV1 telemetry only and does not provide reliable total PV1 + PV2 production.
@@ -280,9 +278,31 @@ Dashboards should prefer EnergyHub Daily Summary entities over the original Home
 
 ---
 
+# Developer Dashboard Architecture
+
+The Developer Dashboard separates current operational state from information used for analysis and future decision-making.
+
+The architecture is:
+
+```text
+EnergyHub Status
+→ What is happening now?
+→ Is the system healthy?
+
+EnergyHub Intelligence
+→ What does EnergyHub know?
+→ What information is available for decisions?
+```
+
+This separation prevents duplication and gives each dashboard card a clear responsibility.
+
+---
+
 # Energy Statistics Dashboard
 
-The 7-day Energy Statistics chart uses:
+The 7-day Energy Statistics chart displays completed Daily Summary history.
+
+Historical chart entities:
 
 ```text
 sensor.energyhub_daily_house_consumption
@@ -290,11 +310,24 @@ sensor.energyhub_daily_solar_surplus_estimated
 sensor.energyhub_daily_grid_availability
 ```
 
-Current Solcast forecasts remain visible in the dashboard header:
+Live current-day information is displayed in the dashboard header.
+
+Current header entities include:
 
 ```text
+sensor.powmr_10_2m_daily_house_consumption
 sensor.solcast_pv_forecast_forecast_today
 sensor.solcast_pv_forecast_forecast_tomorrow
+```
+
+The distinction is intentional:
+
+```text
+7-day chart
+→ completed historical Daily Summary values
+
+Header
+→ live current-day values and future forecasts
 ```
 
 The data flow is:
@@ -314,6 +347,182 @@ EnergyHub Daily Sensors
         ▼
 Energy Statistics Dashboard
 ```
+
+---
+
+# EnergyHub Status Card
+
+Purpose:
+
+```text
+What is happening now?
+
+Is the system healthy?
+```
+
+Current entities:
+
+```text
+sensor.energyhub_communication_status
+sensor.powmr_10_2m_battery_soc
+sensor.powmr_10_2m_battery_charging_current
+sensor.powmr_10_2m_battery_discharge_current
+sensor.powmr_10_2m_output_power
+sensor.powmr_10_2m_pv1_power
+sensor.powmr_10_2m_grid_voltage
+```
+
+Current information:
+
+- Communication Status
+- Battery SOC
+- Battery Charging Current
+- Battery Discharge Current
+- House Load
+- PV1 Power
+- Grid Voltage
+
+Future improvements:
+
+- Current Operating Mode
+- prominent Operating Mode visualization
+- consistent Operating Mode colors
+- Battery Health status
+- Inverter Health status
+- optional unified signed Battery Current sensor
+
+Planned Operating Mode colors:
+
+```text
+Summer → orange
+Winter → dark blue
+Panic  → warning pink/red
+Away   → gray
+```
+
+The unified Battery Current sensor is deferred.
+
+For now, separate Battery Charging Current and Battery Discharge Current sensors remain visible.
+
+---
+
+# EnergyHub Intelligence Card
+
+Purpose:
+
+```text
+What does EnergyHub know?
+
+What information is available for decisions?
+```
+
+Current entities:
+
+```text
+sensor.energyhub_grid_confidence
+sensor.energyhub_grid_available_24h
+sensor.energyhub_grid_available_48h
+sensor.energyhub_daily_house_consumption
+sensor.energyhub_daily_solar_surplus_estimated
+sensor.solcast_pv_forecast_forecast_today
+sensor.solcast_pv_forecast_forecast_tomorrow
+```
+
+Current information:
+
+- Grid Confidence
+- Grid Available 24h
+- Grid Available 48h
+- Consumption Yesterday
+- Solar Surplus Yesterday
+- Solar Forecast Today
+- Solar Forecast Tomorrow
+
+Historical Solar Forecast Yesterday was removed because it is not currently useful for Decision Engine logic or daily operational monitoring.
+
+Grid Confidence is displayed prominently using:
+
+```text
+🟢 NORMAL
+🟡 UNSTABLE
+🟠 RISK
+🔴 PANIC
+```
+
+Current Grid Confidence thresholds:
+
+```text
+90–100% → normal
+60–90%  → unstable
+30–60%  → risk
+0–30%    → panic
+```
+
+Future improvements:
+
+- Recommended Mode
+- Recommendation
+- Reason
+- Recommended Action
+
+The intended future relationship is:
+
+```text
+EnergyHub Status
+→ Current Mode
+
+EnergyHub Intelligence
+→ Recommended Mode
+→ Recommendation
+→ Reason
+→ Recommended Action
+```
+
+---
+
+# Dashboard Responsibilities
+
+The three main EnergyHub dashboard cards currently have separate responsibilities.
+
+## Energy Statistics
+
+```text
+What happened over time?
+```
+
+Provides:
+
+- historical energy statistics;
+- live Consumption Today;
+- current solar forecasts.
+
+## EnergyHub Status
+
+```text
+What is happening now?
+```
+
+Provides:
+
+- current operational state;
+- battery behavior;
+- inverter telemetry;
+- communication health.
+
+## EnergyHub Intelligence
+
+```text
+What does EnergyHub know?
+```
+
+Provides:
+
+- Grid Confidence;
+- recent Grid Availability;
+- previous-day energy facts;
+- future solar forecasts.
+
+Future Decision Engine recommendations and explanations will be added to EnergyHub Intelligence.
 
 ---
 
@@ -338,3 +547,37 @@ Daytime grid import during Panic Mode may not be included in the estimate.
 This is acceptable because Daily Grid Import Estimated is intended for informational and historical purposes only.
 
 Daily Grid Import Estimated must not be used as an authoritative Decision Engine input.
+
+---
+
+# Home Assistant Responsibility
+
+Home Assistant remains responsible for:
+
+- hardware and service integrations;
+- dashboards;
+- user controls;
+- selected helper entities;
+- selected snapshot timing;
+- publishing integration data required by EnergyHub.
+
+EnergyHub remains responsible for:
+
+- persistent operational state;
+- historical Daily Summary data;
+- system health;
+- Grid Confidence;
+- future Battery Health;
+- future Inverter Health;
+- future Decision Engine logic;
+- future explainable recommendations.
+
+The architectural boundary is:
+
+```text
+Home Assistant
+→ Integration and Presentation
+
+EnergyHub
+→ Intelligence and Persistent System State
+```

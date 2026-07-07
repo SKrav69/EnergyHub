@@ -6,140 +6,205 @@
 
 # High Priority
 
-## Inverter Control
-
-* Programmatically change inverter operating modes
-* Summer Mode
-* Winter Mode
-* Panic Mode
-* Away Mode
-* Manual Override
-
----
-
-## Battery Charging
-
-* Control AC charging current
-* Dynamic charging power
-* Night tariff optimization
-* Panic charging mode
-
----
-
-## Home Assistant
-
-* Family dashboard
-* Engineering dashboard
-* Dashboard redesign
-* Better status indicators
-
----
-
-## Notifications
-
-* Power outage detection
-* Battery reserve warnings
-* High load alerts
-* System health monitoring
-
----
-
-# Medium Priority
-
-## Forecasting
-
-* Weather forecast
-* Solar production forecast
-* Battery prediction
-* Consumption prediction
-
-Dashboard: Grid Availability & Grid Charging
-
-- Add grid availability sensor:
-  grid_available = ac_input_voltage > 180
-
-- Show grid availability on dashboard:
-  100% = grid available
-  0% = grid unavailable
-
-- Add daily / weekly statistics:
-  grid charging energy
-  grid charging during Winter Mode
-  grid charging during Panic Mode
-  night tariff charging amount
-
-- Show this on Engineering Dashboard first.
-- Later simplify for Family Dashboard.
-
----
-
-## Electric Vehicle
-
-* Solar-first charging
-* Smart charging schedules
-* Battery reserve protection
-
----
-
-## Energy Optimization
-
-* Dynamic tariffs
-* Net Billing optimization
-* Smart export
-* Smart import
-
----
-
-# Low Priority
-
-## BMS Integration
+## Recovery Strategy
 
 Status:
 
-Postponed.
+Next development milestone.
 
-Reason:
+Goals:
 
-Current inverter data is sufficient for the first development stages.
-
-Future work:
-
-* JK BMS
-* Daly BMS
-* Cell voltage monitoring
-* Balancing information
-* Temperature monitoring
+* Investigate MQTT connection failures.
+* Investigate network failures.
+* Investigate serial communication failures.
+* Investigate `mpp-solar` timeouts and blocking.
+* Investigate Home Assistant connectivity failures.
+* Define recovery responsibilities for each EnergyHub service.
+* Define when automatic recovery should occur.
+* Define when EnergyHub should only report a failure.
+* Add recovery notifications where appropriate.
 
 ---
 
+## Battery Health Monitoring
+
+Status:
+
+Planned.
+
+Goals:
+
+* Detect abnormal Battery SOC changes.
+* Detect sudden SOC jumps between telemetry updates.
+* Define warning and critical SOC jump thresholds.
+* Publish Battery Health information through MQTT.
+* Generate alerts for suspicious battery behavior.
+* Preserve enough diagnostic information to investigate battery events.
+
+Initial detection concept:
+
+```text
+SOC change >= 3% between telemetry updates
+→ warning
+
+SOC change >= 10% between telemetry updates
+→ critical
+
+## Home Assistant
+
+Goals:
+
+* Family Dashboard.
+* Engineering Dashboard.
+* Better status indicators.
+* Continue dashboard improvements as new EnergyHub services and entities are added.
+
+Current dashboard architecture:
+
+```text
+EnergyHub Status
+→ What is happening now?
+→ Is the system healthy?
+
+EnergyHub Intelligence
+→ What does EnergyHub know?
+→ What information is available for decisions?
+
+# Low Priority
+
 ## Additional Hardware
 
-* Deye
-* Victron
-* Growatt
-* LuxPower
+Goals:
+
+* Deye.
+* Victron.
+* Growatt.
+* LuxPower.
 
 ---
 
 ## Infrastructure
 
-* Remote Home Assistant access
-* Secure VPN access
-* Automatic backups
-* OTA updates
+Goals:
+
+* Remote Home Assistant access.
+* Secure VPN access.
+* Automatic backups.
+* OTA updates.
 
 ---
 
 # Research
 
-Ideas that require investigation before implementation.
+Ideas that require investigation before implementation:
 
-Examples:
+* AI energy optimization.
+* Machine learning consumption prediction.
+* Dynamic electricity pricing.
+* Automatic anomaly detection.
 
-* AI energy optimization
-* Machine learning consumption prediction
-* Dynamic electricity pricing
-* Automatic anomaly detection
+---
+
+## Reliability
+
+Goals:
+
+* Telemetry freshness detection.
+* Automatic add-on restart where appropriate.
+* Communication Health MQTT sensor.
+* Health dashboard card.
+* Recovery notifications.
+
+---
+
+## Dashboard
+
+### Developer Dashboard
+
+Goals:
+
+* EnergyHub Status card.
+* EnergyHub Intelligence card.
+* Grid Confidence.
+* Grid Availability.
+* Battery Health information.
+* Inverter Health information.
+* Decision Engine recommendations and explanations.
+
+### Family Dashboard
+
+Goals:
+
+* Current Operating Mode.
+* Battery SOC.
+* Grid status.
+* Sunrise / Sunset.
+* Heating controls.
+* Panic Mode.
+
+The Family Dashboard should provide simple and understandable information without exposing unnecessary engineering details.
+
+---
+
+## Daily Summary
+
+Status:
+
+v1 Complete.
+
+Currently stores:
+
+* Daily House Consumption.
+* Daily Solar Forecast.
+* Daily Solar Surplus Estimated.
+* Daily Grid Availability.
+
+Current history:
+
+* Persistent daily history in EnergyHub.
+* 7-day dashboard visualization.
+
+Future:
+
+* Last 30 days visualization.
+* Grid charging energy.
+* Exported energy.
+* Imported energy.
+* Daily Grid Import Estimated.
+
+---
+
+## Decision Engine
+
+Status:
+
+Planned after Recovery Strategy investigation.
+
+Goals:
+
+* Produce Operating Mode recommendations.
+* Produce Battery Strategy recommendations.
+* Produce Heating Strategy recommendations.
+* Produce Flexible Load recommendations.
+* Explain every significant recommendation.
+* Publish Recommended Mode.
+* Publish Reason.
+* Publish Recommended Action.
+
+Initial implementation should remain recommendation-only.
+
+Automatic execution should be introduced only after recommendations have been observed and validated against real household behavior.
+
+---
+
+## Documentation
+
+Goals:
+
+* Update documentation at the end of every development session.
+* Keep `PROJECT_STATE.md` as the primary entry point for future development.
+* Record significant real-system findings.
+* Clearly distinguish confirmed behavior from hypotheses requiring additional testing.
 
 ---
 
@@ -148,58 +213,3 @@ Examples:
 Backlog items are not forgotten.
 
 They are simply waiting for the right stage of development.
-
-## Reliability
-
-- Telemetry freshness detection
-- Automatic add-on restart
-- Communication Health MQTT sensor
-- Health dashboard card
-- Recovery notifications
-
----
-
-## Dashboard
-
-Developer Dashboard
-
-- Health card
-- Grid Confidence
-- Grid Availability
-
-Family Dashboard
-
-- Current mode
-- Battery SOC
-- Sunrise / Sunset
-- Heating controls
-- Panic mode
-
----
-
-## Daily Summary
-
-Replace PV Generation with:
-
-- House Consumption
-- Energy Opportunity
-- Grid Availability
-
-Store:
-
-- Last 7 days
-- Last 30 days
-
-Future:
-
-- Grid charging energy
-- Exported energy
-- Imported energy
-
----
-
-## Documentation
-
-Update documentation at the end of every development session.
-
-PROJECT_STATE.md becomes the primary entry point for future development.
