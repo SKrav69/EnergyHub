@@ -271,3 +271,43 @@ def publish_battery_health_discovery(client):
         client.publish(topic, json.dumps(payload), retain=True)
 
     log("Battery Health MQTT discovery published")
+
+def publish_telemetry_freshness(client, telemetry_freshness):
+    for key, value in telemetry_freshness.mqtt_values().items():
+        client.publish(f"{BASE_TOPIC}/{key}/state", str(value), retain=True)
+
+
+def publish_telemetry_freshness_discovery(client):
+    device = {
+        "identifiers": ["energyhub_core"],
+        "name": "EnergyHub",
+        "manufacturer": "EnergyHub",
+        "model": "Core",
+    }
+
+    sensors = {
+        "telemetry_freshness": ("Telemetry Freshness", None, None, None),
+        "telemetry_freshness_reason": ("Telemetry Freshness Reason", None, None, None),
+        "house_load_unchanged_minutes": ("House Load Unchanged", "min", None, "measurement"),
+    }
+
+    for key, (name, unit, device_class, state_class) in sensors.items():
+        payload = {
+            "name": name,
+            "unique_id": f"energyhub_{key}",
+            "state_topic": f"{BASE_TOPIC}/{key}/state",
+            "availability_topic": AVAILABILITY_TOPIC,
+            "device": device,
+        }
+
+        if unit:
+            payload["unit_of_measurement"] = unit
+        if device_class:
+            payload["device_class"] = device_class
+        if state_class:
+            payload["state_class"] = state_class
+
+        topic = f"homeassistant/sensor/energyhub_{key}/config"
+        client.publish(topic, json.dumps(payload), retain=True)
+
+    log("Telemetry Freshness MQTT discovery published")

@@ -15,6 +15,8 @@ from app.mqtt.publisher import (
     publish_grid_history,
     publish_health,
     publish_health_discovery,
+    publish_telemetry_freshness,
+    publish_telemetry_freshness_discovery,
 )
 from app.services.battery_health import BatteryHealthMonitor
 from app.services.daily_summary import DailySummaryService
@@ -24,6 +26,7 @@ from app.services.grid_monitor import GridMonitor
 from app.services.grid_stability import GridStabilityEngine
 from app.services.health_monitor import HealthMonitor
 from app.services.telemetry import TelemetryService
+from app.services.telemetry_freshness import TelemetryFreshnessMonitor
 from app.services.watchdog import CommunicationWatchdog
 from app.utils.logger import log
 
@@ -49,6 +52,7 @@ def main():
     watchdog = CommunicationWatchdog()
     health = HealthMonitor()
     battery_health = BatteryHealthMonitor()
+    telemetry_freshness = TelemetryFreshnessMonitor()
 
     grid = GridMonitor()
     history = GridHistoryService()
@@ -96,6 +100,7 @@ def main():
     publish_grid_discovery(client)
     publish_health_discovery(client)
     publish_battery_health_discovery(client)
+    publish_telemetry_freshness_discovery(client)
     publish_daily_summary_discovery(client)
     publish_daily_summary(client, daily_summary)
 
@@ -105,6 +110,9 @@ def main():
         try:
             data = inverter.read_telemetry()
             state = telemetry.process(data)
+
+            telemetry_freshness.update(state)
+            publish_telemetry_freshness(client, telemetry_freshness)
 
             if not state.valid:
                 watchdog.failure()
@@ -126,16 +134,24 @@ def main():
                 publish_grid_history(client, history, stability)
 
         except subprocess.TimeoutExpired:
+            telemetry_freshness.update_status()
+            publish_telemetry_freshness(client, telemetry_freshness)
+
             watchdog.failure()
             health.update(watchdog)
             publish_health(client, health)
+
             log("ERROR: mpp-solar timeout")
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
 
         except Exception:
+            telemetry_freshness.update_status()
+            publish_telemetry_freshness(client, telemetry_freshness)
+
             watchdog.failure()
             health.update(watchdog)
             publish_health(client, health)
+
             log("ERROR:")
             log(traceback.format_exc())
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
