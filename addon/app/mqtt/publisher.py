@@ -54,7 +54,7 @@ def publish_values(client, data, previous):
 
         value = data.get(key)
 
-        if not is_valid_value(key, value, previous):
+        if not is_valid_value(key, value):
             continue
 
         client.publish(f"{BASE_TOPIC}/{key}/state", str(value), retain=True)
@@ -64,7 +64,7 @@ def publish_values(client, data, previous):
     return published
 
 
-def is_valid_value(key, value, previous):
+def is_valid_value(key, value):
     if value is None:
         return False
 
@@ -74,25 +74,9 @@ def is_valid_value(key, value, previous):
         except Exception:
             return False
 
-        if soc <= 0 or soc > 100:
+        if soc < 0 or soc > 100:
             log(f"Skip invalid SOC: {soc}")
             return False
-
-        prev_soc = previous.get("battery_capacity")
-        if prev_soc is not None:
-            try:
-                prev_soc = float(prev_soc)
-
-                if prev_soc > 50 and soc < 30:
-                    log(f"Skip suspicious SOC jump: {prev_soc} -> {soc}")
-                    return False
-
-                if prev_soc - soc > 25:
-                    log(f"Skip suspicious SOC drop: {prev_soc} -> {soc}")
-                    return False
-
-            except Exception:
-                pass
 
     return True
 
@@ -247,3 +231,43 @@ def publish_daily_summary_discovery(client):
         client.publish(topic, json.dumps(payload), retain=True)
 
     log("Daily Summary MQTT discovery published")
+
+
+def publish_battery_health(client, battery_health):
+    for key, value in battery_health.mqtt_values().items():
+        client.publish(f"{BASE_TOPIC}/{key}/state", str(value), retain=True)
+
+
+def publish_battery_health_discovery(client):
+    device = {
+        "identifiers": ["energyhub_core"],
+        "name": "EnergyHub",
+        "manufacturer": "EnergyHub",
+        "model": "Core",
+    }
+
+    sensors = {
+        "battery_health": ("Battery Health", None, None, None),
+        "battery_health_reason": ("Battery Health Reason", None, None, None),
+    }
+
+    for key, (name, unit, device_class, state_class) in sensors.items():
+        payload = {
+            "name": name,
+            "unique_id": f"energyhub_{key}",
+            "state_topic": f"{BASE_TOPIC}/{key}/state",
+            "availability_topic": AVAILABILITY_TOPIC,
+            "device": device,
+        }
+
+        if unit:
+            payload["unit_of_measurement"] = unit
+        if device_class:
+            payload["device_class"] = device_class
+        if state_class:
+            payload["state_class"] = state_class
+
+        topic = f"homeassistant/sensor/energyhub_{key}/config"
+        client.publish(topic, json.dumps(payload), retain=True)
+
+    log("Battery Health MQTT discovery published")

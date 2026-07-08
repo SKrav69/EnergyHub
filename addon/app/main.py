@@ -6,6 +6,8 @@ from app.adapters.powmr import PowMrLocalAdapter
 from app.config import AVAILABILITY_TOPIC, load_options
 from app.mqtt.publisher import (
     make_client,
+    publish_battery_health,
+    publish_battery_health_discovery,
     publish_daily_summary,
     publish_daily_summary_discovery,
     publish_discovery,
@@ -14,6 +16,7 @@ from app.mqtt.publisher import (
     publish_health,
     publish_health_discovery,
 )
+from app.services.battery_health import BatteryHealthMonitor
 from app.services.daily_summary import DailySummaryService
 from app.services.event_bus import EventBus
 from app.services.grid_history import GridHistoryService
@@ -45,6 +48,7 @@ def main():
     telemetry = TelemetryService(client)
     watchdog = CommunicationWatchdog()
     health = HealthMonitor()
+    battery_health = BatteryHealthMonitor()
 
     grid = GridMonitor()
     history = GridHistoryService()
@@ -91,6 +95,7 @@ def main():
     publish_discovery(client, options["device_name"])
     publish_grid_discovery(client)
     publish_health_discovery(client)
+    publish_battery_health_discovery(client)
     publish_daily_summary_discovery(client)
     publish_daily_summary(client, daily_summary)
 
@@ -110,6 +115,10 @@ def main():
                 watchdog.success()
                 health.update(watchdog)
                 publish_health(client, health)
+
+                battery_health.update(state)
+                publish_battery_health(client, battery_health)
+
                 client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
                 bus.publish(state)
