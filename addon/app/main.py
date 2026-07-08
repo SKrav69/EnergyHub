@@ -15,6 +15,8 @@ from app.mqtt.publisher import (
     publish_grid_history,
     publish_health,
     publish_health_discovery,
+    publish_inverter_health,
+    publish_inverter_health_discovery,
     publish_telemetry_freshness,
     publish_telemetry_freshness_discovery,
 )
@@ -25,6 +27,7 @@ from app.services.grid_history import GridHistoryService
 from app.services.grid_monitor import GridMonitor
 from app.services.grid_stability import GridStabilityEngine
 from app.services.health_monitor import HealthMonitor
+from app.services.inverter_health import InverterHealthMonitor
 from app.services.telemetry import TelemetryService
 from app.services.telemetry_freshness import TelemetryFreshnessMonitor
 from app.services.watchdog import CommunicationWatchdog
@@ -53,11 +56,14 @@ def main():
     health = HealthMonitor()
     battery_health = BatteryHealthMonitor()
     telemetry_freshness = TelemetryFreshnessMonitor()
+    inverter_health = InverterHealthMonitor()
 
     grid = GridMonitor()
     history = GridHistoryService()
     stability = GridStabilityEngine(history)
     daily_summary = DailySummaryService(history)
+
+    last_warning_read = 0
 
     bus = EventBus()
     bus.subscribe(grid.handle_inverter_state)
@@ -101,6 +107,7 @@ def main():
     publish_health_discovery(client)
     publish_battery_health_discovery(client)
     publish_telemetry_freshness_discovery(client)
+    publish_inverter_health_discovery(client)
     publish_daily_summary_discovery(client)
     publish_daily_summary(client, daily_summary)
 
@@ -113,6 +120,19 @@ def main():
 
             telemetry_freshness.update(state)
             publish_telemetry_freshness(client, telemetry_freshness)
+
+            now = time.monotonic()
+            if now - last_warning_read >= 60:
+                try:
+                    warning_data = inverter.read_warnings()
+                    inverter_health.update(warning_data)
+                    
+                except Exception as e:
+                    inverter_health.failure()
+                    log(f"ERROR: QPIWS warning read failed: {e}")
+
+                publish_inverter_health(client, inverter_health)
+                last_warning_read = now
 
             if not state.valid:
                 watchdog.failure()

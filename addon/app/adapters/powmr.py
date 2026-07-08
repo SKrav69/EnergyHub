@@ -8,7 +8,7 @@ class PowMrLocalAdapter:
         self.protocol = options["protocol"]
         self.command = options["command"]
 
-    def read_telemetry(self):
+    def _run_command(self, command):
         cmd = [
             "mpp-solar",
             "-p",
@@ -16,10 +16,16 @@ class PowMrLocalAdapter:
             "-P",
             self.protocol,
             "-c",
-            self.command,
+            command,
             "-o",
             "json",
         ]
 
         output = subprocess.check_output(cmd, text=True, timeout=25)
         return json.loads(output)
+
+    def read_telemetry(self):
+        return self._run_command(self.command)
+
+    def read_warnings(self):
+        return self._run_command("QPIWS")
