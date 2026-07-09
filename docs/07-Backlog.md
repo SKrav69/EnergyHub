@@ -10,9 +10,30 @@
 
 Status:
 
-Next development milestone.
+Design started.
 
-Goals:
+Completed:
+
+* Communication Watchdog.
+* Communication Health monitoring.
+* Battery Health Monitor v1.
+* Telemetry Freshness Monitor v1.
+* Inverter Health Monitor v1.
+* System Health aggregation v1.
+* `QPIWS` warning and fault reading.
+* Initial Recovery Strategy principles defined.
+
+Confirmed principles:
+
+* EnergyHub must never automatically restart the inverter.
+* The inverter owns its internal protection and restart behavior.
+* Detection and recovery are separate responsibilities.
+* Battery anomalies are warning events only.
+* Inverter warnings and faults are warning events only in Recovery v1.
+* Automatic recovery must be bounded.
+* Infinite restart loops are prohibited.
+
+Future work:
 
 * Investigate MQTT connection failures.
 * Investigate network failures.
@@ -20,9 +41,12 @@ Goals:
 * Investigate `mpp-solar` timeouts and blocking.
 * Investigate Home Assistant connectivity failures.
 * Define recovery responsibilities for each EnergyHub service.
-* Define when automatic recovery should occur.
-* Define when EnergyHub should only report a failure.
-* Add recovery notifications where appropriate.
+* Implement limited EnergyHub self-recovery where appropriate.
+* Allow no more than one initial automatic recovery attempt.
+* Allow a possible second recovery attempt after approximately 30 minutes.
+* Stop automatic recovery after repeated failure.
+* Add recovery notifications.
+* Investigate external heartbeat/watchdog monitoring for cases where Home Assistant or EnergyHub is completely unavailable.
 
 ---
 
@@ -30,186 +54,46 @@ Goals:
 
 Status:
 
-Planned.
-
-Goals:
-
-* Detect abnormal Battery SOC changes.
-* Detect sudden SOC jumps between telemetry updates.
-* Define warning and critical SOC jump thresholds.
-* Publish Battery Health information through MQTT.
-* Generate alerts for suspicious battery behavior.
-* Preserve enough diagnostic information to investigate battery events.
-
-Initial detection concept:
-
-```text
-SOC change >= 3% between telemetry updates
-→ warning
-
-SOC change >= 10% between telemetry updates
-→ critical
-
-## Home Assistant
-
-Goals:
-
-* Family Dashboard.
-* Engineering Dashboard.
-* Better status indicators.
-* Continue dashboard improvements as new EnergyHub services and entities are added.
-
-Current dashboard architecture:
-
-```text
-EnergyHub Status
-→ What is happening now?
-→ Is the system healthy?
-
-EnergyHub Intelligence
-→ What does EnergyHub know?
-→ What information is available for decisions?
-
-# Low Priority
-
-## Additional Hardware
-
-Goals:
-
-* Deye.
-* Victron.
-* Growatt.
-* LuxPower.
-
----
-
-## Infrastructure
-
-Goals:
-
-* Remote Home Assistant access.
-* Secure VPN access.
-* Automatic backups.
-* OTA updates.
-
----
-
-# Research
-
-Ideas that require investigation before implementation:
-
-* AI energy optimization.
-* Machine learning consumption prediction.
-* Dynamic electricity pricing.
-* Automatic anomaly detection.
-
----
-
-## Reliability
-
-Goals:
-
-* Telemetry freshness detection.
-* Automatic add-on restart where appropriate.
-* Communication Health MQTT sensor.
-* Health dashboard card.
-* Recovery notifications.
-
----
-
-## Dashboard
-
-### Developer Dashboard
-
-Goals:
-
-* EnergyHub Status card.
-* EnergyHub Intelligence card.
-* Grid Confidence.
-* Grid Availability.
-* Battery Health information.
-* Inverter Health information.
-* Decision Engine recommendations and explanations.
-
-### Family Dashboard
-
-Goals:
-
-* Current Operating Mode.
-* Battery SOC.
-* Grid status.
-* Sunrise / Sunset.
-* Heating controls.
-* Panic Mode.
-
-The Family Dashboard should provide simple and understandable information without exposing unnecessary engineering details.
-
----
-
-## Daily Summary
-
-Status:
-
 v1 Complete.
 
-Currently stores:
+Implemented:
 
-* Daily House Consumption.
-* Daily Solar Forecast.
-* Daily Solar Surplus Estimated.
-* Daily Grid Availability.
+* Low SOC detection.
+* SOC jump detection.
+* Battery Health MQTT sensors.
+* Battery Health reason reporting.
 
-Current history:
+Current rules:
 
-* Persistent daily history in EnergyHub.
-* 7-day dashboard visualization.
+```text
+SOC < 15%
+→ warning
 
-Future:
+SOC between 15% and 95%
+AND absolute SOC change >= 2%
+→ warning
 
-* Last 30 days visualization.
-* Grid charging energy.
-* Exported energy.
-* Imported energy.
-* Daily Grid Import Estimated.
+SOC > 95%
+→ SOC jump detection disabled
 
 ---
 
-## Decision Engine
+## Daily Grid Import
 
 Status:
 
-Planned after Recovery Strategy investigation.
+Planned.
 
-Goals:
+Goal:
 
-* Produce Operating Mode recommendations.
-* Produce Battery Strategy recommendations.
-* Produce Heating Strategy recommendations.
-* Produce Flexible Load recommendations.
-* Explain every significant recommendation.
-* Publish Recommended Mode.
-* Publish Reason.
-* Publish Recommended Action.
+Estimate and store daily electricity imported from the grid.
 
-Initial implementation should remain recommendation-only.
+Grid Import may occur in several different operating scenarios.
 
-Automatic execution should be introduced only after recommendations have been observed and validated against real household behavior.
+### Solar Mode Fallback Import
 
----
+Normal configuration:
 
-## Documentation
-
-Goals:
-
-* Update documentation at the end of every development session.
-* Keep `PROJECT_STATE.md` as the primary entry point for future development.
-* Record significant real-system findings.
-* Clearly distinguish confirmed behavior from hypotheses requiring additional testing.
-
----
-
-# Rule
-
-Backlog items are not forgotten.
-
-They are simply waiting for the right stage of development.
+```text
+Setting 01 → SBU
+Setting 16 → OSO

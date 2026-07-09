@@ -1,66 +1,77 @@
 # Changelog
 
-## 2026-07-06
+## 2026-07-09
+
+### Added
+
+- Battery Health Monitor v1.
+- New `BatteryHealthMonitor`.
+- Battery Health MQTT sensors:
+  - `sensor.energyhub_battery_health`
+  - `sensor.energyhub_battery_health_reason`
+- Low battery detection:
+  - SOC below 15% → `warning`
+- SOC jump detection:
+  - active between 15% and 95% SOC;
+  - SOC change of 2% or more between telemetry readings → `warning`;
+  - SOC above 95% is excluded from SOC jump detection because BMS behavior near full charge may be non-linear.
+
+- Telemetry Freshness Monitor v1.
+- New `TelemetryFreshnessMonitor`.
+- Telemetry Freshness MQTT sensors:
+  - `sensor.energyhub_telemetry_freshness`
+  - `sensor.energyhub_telemetry_freshness_reason`
+  - `sensor.energyhub_house_load_unchanged`
+- Detection of missing valid telemetry.
+- Detection of unchanged House Load telemetry for 5 minutes.
+- Battery parameters are intentionally excluded from frozen telemetry detection because battery SOC, voltage and current may legitimately remain unchanged for long periods.
+
+- Inverter Health Monitor v1.
+- New `InverterHealthMonitor`.
+- Added `QPIWS` warning and fault polling every 60 seconds.
+- Added PowMr adapter support for separate inverter warning reads.
+- Inverter Health MQTT sensors:
+  - `sensor.energyhub_inverter_health`
+  - `sensor.energyhub_inverter_health_reason`
+  - `sensor.energyhub_inverter_warning_raw`
+- Automatic parsing of active `QPIWS` warning and fault flags.
+
+- System Health aggregation v1.
+- New `SystemHealthMonitor`.
+- System Health MQTT sensors:
+  - `sensor.energyhub_system_health`
+  - `sensor.energyhub_system_health_reason`
+- System Health combines:
+  - Communication Health;
+  - Battery Health;
+  - Telemetry Freshness;
+  - Inverter Health.
 
 ### Changed
 
-- Updated Energy Statistics dashboard card.
-- Separated historical Daily Summary values from live current-day values.
-- Added live `Consumption Today` to the Energy Statistics header.
-- Historical Daily House Consumption remains displayed in the 7-day chart as completed-day data.
-- Redesigned EnergyHub dashboard monitoring into two separate responsibilities:
-  - `EnergyHub Status` — current operational state and system health.
-  - `EnergyHub Intelligence` — information available for monitoring and future Decision Engine decisions.
-- Updated EnergyHub Status card with:
-  - Communication Status
-  - Battery SOC
-  - Battery Charging Current
-  - Battery Discharge Current
-  - House Load
-  - PV1 Power
-  - Grid Voltage
-- Updated EnergyHub Intelligence card.
-- Removed historical Solar Forecast Yesterday from EnergyHub Intelligence.
-- Added rolling 24-hour and 48-hour Grid Availability information.
-- Added prominent dynamic Grid Confidence visualization:
-  - `normal` → 🟢 NORMAL
-  - `unstable` → 🟡 UNSTABLE
-  - `risk` → 🟠 RISK
-  - `panic` → 🔴 PANIC
-
-### Improved
-
-- Clarified dashboard responsibilities between current operational monitoring and information used for future decision-making.
-- Improved visibility of battery charging and discharging behavior.
-- Improved Grid Confidence visibility and interpretation.
-- Reduced duplicated information between EnergyHub dashboard cards.
+- Removed legacy SOC jump filtering from the MQTT publisher.
+- Suspicious SOC values are no longer silently hidden from Home Assistant.
+- SOC anomalies are now explicitly detected and reported by `BatteryHealthMonitor`.
+- Refactored `PowMrLocalAdapter` to support reusable inverter commands.
+- Added separate `read_warnings()` path for `QPIWS`.
+- Health monitoring architecture now separates:
+  - communication failures;
+  - battery anomalies;
+  - stale or suspicious telemetry;
+  - inverter-reported warnings and faults;
+  - aggregated system health.
 
 ### Findings
 
-- Real-system testing showed that `CSO` is not suitable for planned continuous grid charging.
-- During CSO testing, utility charging operated at night while PV generation was zero.
-- When PV generation started, even at very low power, utility charging current dropped significantly.
-- `SNU` was identified as the candidate charging-source mode for future Winter scheduled charging and Panic charging.
-- SNU behavior with simultaneous PV and utility charging requires additional real-system validation.
-- The PowMr firmware exposes three usable charging-source modes:
-  - `OSO`
-  - `CSO`
-  - `SNU`
-- `CUB` is not available on the current inverter firmware.
-- An unexpected inverter restart identified the need to investigate available inverter warning and fault information.
-
-### Architecture Decisions
-
-- EnergyHub dashboards now follow two distinct concepts:
+- `QPIWS` is supported by the PowMr 10.2M inverter and returns structured warning and fault information.
+- Real-system testing detected a persistent:
 
 ```text
-EnergyHub Status
-→ What is happening now?
-→ Is the system healthy?
+eeprom_fault = 1
 
-EnergyHub Intelligence
-→ What does EnergyHub know?
-→ What information is available for decisions?
+---
+
+## 2026-07-06
 
 ### Added
 
