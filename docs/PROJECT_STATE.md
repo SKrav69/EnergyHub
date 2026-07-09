@@ -37,6 +37,236 @@ EnergyHub Core
 Services / Engines
    ↓
 Devices
+```
+
+Current EnergyHub Core modules:
+
+- Telemetry Service
+- Event Bus
+- Grid Monitor
+- Grid History
+- Grid Stability Engine
+- Communication Watchdog
+- Health Monitor
+- Battery Health Monitor
+- Telemetry Freshness Monitor
+- Inverter Health Monitor
+- System Health Monitor
+- Daily Summary Engine
+
+Future modules:
+
+- Decision Engine
+- Recovery Service
+- Notification Engine
+- Forecast Engine
+- Device Manager
+- BMS Adapter
+- Telegram Bot
+
+---
+
+# Current Features Implemented
+
+✅ PowMr telemetry  
+✅ MQTT Discovery  
+✅ Telemetry validation  
+✅ Communication Watchdog  
+✅ Communication Health Monitor  
+✅ Grid History  
+✅ Grid Availability  
+✅ Grid Stability Engine  
+✅ Grid Confidence  
+✅ Battery Health Monitor v1  
+✅ Telemetry Freshness Monitor v1  
+✅ Inverter Health Monitor v1  
+✅ System Health aggregation v1  
+✅ QPIWS warning and fault monitoring  
+✅ Family Dashboard v1  
+✅ Developer Dashboard improvements  
+✅ Daily Energy Statistics dashboard  
+✅ EnergyHub Status dashboard card  
+✅ EnergyHub Intelligence dashboard card  
+✅ Floor 3 Heat Pump Auto-Off  
+✅ House Model  
+✅ Daily Solar Surplus Estimated  
+✅ Daily Summary MQTT input path  
+✅ Daily Summary Engine v1  
+
+---
+
+# Current Health Architecture
+
+EnergyHub separates different classes of system problems into independent health services.
+
+```text
+Communication Health
+        +
+Battery Health
+        +
+Telemetry Freshness
+        +
+Inverter Health
+        ↓
+System Health
+```
+
+Different failures require different responses.
+
+EnergyHub does not use one universal recovery action for every detected problem.
+
+## Communication Health
+
+Purpose:
+
+Detect communication failures between EnergyHub and the inverter.
+
+Current components:
+
+- Communication Watchdog
+- Health Monitor
+
+Current states include:
+
+```text
+starting
+online
+recovering
+unavailable
+```
+
+## Battery Health
+
+Purpose:
+
+Detect abnormal battery behavior.
+
+Current Battery Health Monitor v1 rules:
+
+```text
+SOC < 15%
+→ warning
+
+SOC between 15% and 95%
+AND absolute SOC change >= 2%
+→ warning
+```
+
+Battery Health thresholds are technical configuration values and may differ between battery systems.
+
+Current MQTT entities:
+
+```text
+sensor.energyhub_battery_health
+sensor.energyhub_battery_health_reason
+```
+
+Battery Health anomalies are detection and warning events only.
+
+## Telemetry Freshness
+
+Purpose:
+
+Detect missing or suspiciously frozen inverter telemetry.
+
+Current rules:
+
+```text
+No valid telemetry for 60 seconds
+→ stale
+
+House Load unchanged for 5 minutes
+→ warning
+```
+
+Current MQTT entities:
+
+```text
+sensor.energyhub_telemetry_freshness
+sensor.energyhub_telemetry_freshness_reason
+sensor.energyhub_house_load_unchanged
+```
+
+Battery parameters are intentionally excluded from frozen telemetry detection because they may legitimately remain unchanged for long periods.
+
+Grid voltage is unsuitable as the primary telemetry movement indicator in the current installation because a voltage stabilizer keeps input voltage relatively stable.
+
+House Load is currently used as the primary telemetry movement indicator because it normally changes during real household operation.
+
+## Inverter Health
+
+Purpose:
+
+Read and interpret inverter-reported warnings and faults.
+
+EnergyHub polls:
+
+```text
+QPIWS
+```
+
+every 60 seconds.
+
+Current MQTT entities:
+
+```text
+sensor.energyhub_inverter_health
+sensor.energyhub_inverter_health_reason
+sensor.energyhub_inverter_warning_raw
+```
+
+Real-system testing discovered:
+
+```text
+eeprom_fault = 1
+```
+
+All other observed QPIWS warning and fault flags were zero.
+
+The operational significance of the persistent `eeprom_fault` remains under investigation.
+
+EnergyHub must never automatically restart the inverter.
+
+## System Health
+
+Purpose:
+
+Provide one aggregated EnergyHub operational health state.
+
+Current inputs:
+
+```text
+Communication Health
+Battery Health
+Telemetry Freshness
+Inverter Health
+```
+
+Current MQTT entities:
+
+```text
+sensor.energyhub_system_health
+sensor.energyhub_system_health_reason
+```
+
+Current basic rules:
+
+```text
+Communication unavailable
+→ System Health unavailable
+
+Any component warning
+→ System Health warning
+
+All components healthy
+→ System Health normal
+```
+
+The persistent inverter `eeprom_fault` currently causes System Health to report a warning.
+
+This behavior is intentionally preserved until the meaning of the fault is investigated.
+
+---
 
 # Current Dashboard Architecture
 
@@ -75,12 +305,6 @@ Future:
 - prominent Operating Mode visualization
 - consistent Operating Mode colors
 - System Health visualization
-- Battery Health status
-- Telemetry Freshness status
-- Inverter Health status
-- unified signed Battery Current sensor if useful
-
----
 
 ## EnergyHub Intelligence
 
@@ -102,15 +326,6 @@ Current information:
 - Solar Forecast Today
 - Solar Forecast Tomorrow
 
-Grid Confidence is displayed prominently using:
-
-```text
-🟢 NORMAL
-🟡 UNSTABLE
-🟠 RISK
-🔴 PANIC
-```
-
 Future:
 
 - Recommended Mode
@@ -119,59 +334,6 @@ Future:
 - Recommended Action
 - Battery Reserve Forecast
 - expected ability to operate until the next charging opportunity
-
-When Current Mode and Recommended Mode differ, EnergyHub Intelligence should clearly explain why.
-
----
-
-# Current Dashboard
-
-## Developer Dashboard
-
-Contains technical, operational and decision-support information:
-
-- PowMr telemetry
-- Battery state
-- Grid state
-- Communication status
-- EnergyHub Status
-- EnergyHub Intelligence
-- Grid Confidence
-- Grid Availability
-- Daily energy statistics
-- Smart plug / heat pump visibility
-
-Future additions:
-
-- System Health
-- Battery Health
-- Telemetry Freshness
-- Inverter Health
-- Current Operating Mode
-- Current Setting 01 state
-- Current Setting 16 state
-- Daily Grid Import
-- Decision Engine recommendations and explanations
-
-## Family Dashboard
-
-Contains calm operational information for household members:
-
-- inverter/grid status;
-- battery state;
-- current house load;
-- floor temperatures;
-- smart plug controls;
-- heat pump controls;
-- operational warnings only when needed.
-
-Future additions:
-
-- Current Operating Mode
-- simplified System Health information
-- Panic Mode control where appropriate
-
-The Family Dashboard should not expose unnecessary engineering details.
 
 ---
 
@@ -219,9 +381,7 @@ The inverter may expose command names and display names differently.
 
 The real inverter display was used to verify actual Setting 16 behavior.
 
----
-
-# Setting 01
+## Setting 01
 
 Setting 01 controls output source priority.
 
@@ -268,10 +428,6 @@ Current intended use:
 Solar Mode
 ```
 
-Battery charging is performed from solar energy only.
-
----
-
 ## CSO
 
 Solar First.
@@ -294,10 +450,6 @@ PV generation begins
 Utility charging current significantly decreases
 ```
 
-Because of this behavior, CSO is no longer the primary candidate for controlled Hybrid or Panic charging.
-
----
-
 ## SNU
 
 SNU is the selected candidate for controlled utility and solar charging.
@@ -313,24 +465,11 @@ Important real-system finding:
 
 Changing Setting 16 from OSO to SNU alone does not necessarily force immediate grid charging.
 
-The inverter still follows Setting 01 output-source behavior and the configured low-battery transfer thresholds.
-
-Because of this, controlled EnergyHub charging requires coordinated Setting 01 and Setting 16 changes.
+Controlled EnergyHub charging requires coordinated Setting 01 and Setting 16 changes.
 
 ---
 
 # Current Operating Mode Strategy
-
-The previous mode names:
-
-```text
-Summer
-Winter
-```
-
-were abandoned.
-
-They did not accurately describe the real operating strategy.
 
 Current mode names:
 
@@ -343,13 +482,7 @@ Away
 
 The modes describe how the house obtains and manages energy rather than the current season.
 
----
-
 ## Solar Mode
-
-Purpose:
-
-Prefer solar generation and battery energy.
 
 Expected inverter configuration:
 
@@ -378,13 +511,7 @@ This behavior may be acceptable when Grid Confidence is good.
 
 During the fallback period, house consumption supplied by the grid must eventually be included in Daily Grid Import.
 
----
-
 ## Hybrid Mode
-
-Purpose:
-
-Use controlled grid charging when expected solar generation is insufficient to maintain an appropriate battery reserve.
 
 Expected charging configuration:
 
@@ -402,10 +529,7 @@ Battery SOC → 80%
 After the target is reached:
 
 ```text
-Restore:
-
-Setting 01 → SBU
-Setting 16 → OSO
+Restore SBU + OSO
 ```
 
 Initial expected use:
@@ -422,17 +546,7 @@ Hybrid Mode should eventually consider:
 - current Battery SOC;
 - expected battery reserve.
 
-Hybrid Mode is not simply a fixed seasonal mode.
-
-It is an energy strategy that may be activated when solar energy alone is unlikely to provide sufficient battery reserve.
-
----
-
 ## Panic Mode
-
-Purpose:
-
-Protect battery reserve when grid availability is unreliable.
 
 Expected charging configuration:
 
@@ -450,10 +564,7 @@ Battery SOC → 95%
 After the target is reached:
 
 ```text
-Restore:
-
-Setting 01 → SBU
-Setting 16 → OSO
+Restore SBU + OSO
 ```
 
 Unlike Hybrid Mode, Panic charging may occur at any time of day.
@@ -461,16 +572,12 @@ Unlike Hybrid Mode, Panic charging may occur at any time of day.
 Possible triggers include:
 
 - poor Grid Confidence;
-- rapidly falling Battery SOC;
+- falling Battery SOC;
 - low remaining solar generation;
 - high expected House Consumption;
 - insufficient projected battery reserve.
 
-Panic Mode should eventually become proactive.
-
 EnergyHub should not always wait until the battery reaches the inverter's 15% low-battery fallback threshold.
-
----
 
 ## Away Mode
 
@@ -486,20 +593,6 @@ Current concept:
 - protect battery reserve;
 - use excess solar energy for flexible heating loads;
 - reduce unnecessary grid import.
-
-Possible future behavior:
-
-```text
-SOC high
-+
-sufficient solar generation
-→ enable flexible heating loads
-
-SOC falls to reserve threshold
-→ disable flexible heating loads
-```
-
-Exact Away Mode behavior will be designed later.
 
 ---
 
@@ -520,16 +613,12 @@ Low solar generation
 +
 High house consumption
         ↓
-Battery SOC falls toward 30%
+Battery SOC falls
         ↓
 Grid Confidence is poor
         ↓
 Risk of battery depletion
-        ↓
-Grid may be unavailable when the battery reaches critical SOC
 ```
-
-In this situation, waiting for the normal inverter 15% fallback threshold may be unsafe.
 
 Future EnergyHub behavior may be:
 
@@ -553,15 +642,6 @@ The central future Decision Engine question is:
 Can the house safely survive until the next expected charging opportunity?
 ```
 
-This requires future battery reserve forecasting based on:
-
-- current Battery SOC;
-- Battery SOC trend;
-- remaining solar production;
-- expected House Consumption;
-- Grid Confidence;
-- time until the next expected charging opportunity.
-
 ---
 
 # Current Daily Summary Model
@@ -572,27 +652,14 @@ Home Assistant provides selected daily values through retained MQTT input topics
 
 EnergyHub consumes these inputs, stores a daily snapshot, and republishes EnergyHub-owned MQTT sensors for dashboards and future engines.
 
-## Home Assistant Source Values
+Current values:
 
 - Daily House Consumption
-- Solcast Forecast Today
+- Daily Solar Forecast
 - Daily Solar Surplus Estimated
+- Daily Grid Availability
 
-## Snapshot Timing
-
-Home Assistant owns the daily snapshot timing.
-
-At 23:50 local time:
-
-- Home Assistant calculates and stores Daily Solar Surplus Estimated before daily source sensors reset at midnight.
-
-At 23:51 local time:
-
-- Home Assistant publishes the Daily Summary input values to MQTT.
-
-EnergyHub receives the retained MQTT messages and creates or updates the daily snapshot when all required values are available.
-
-## MQTT Input Topics
+MQTT input topics:
 
 ```text
 energyhub/input/ha/daily_house_consumption
@@ -600,7 +667,7 @@ energyhub/input/ha/solar_forecast_today
 energyhub/input/ha/daily_solar_surplus_estimated
 ```
 
-## EnergyHub Daily Sensors
+EnergyHub Daily Sensors:
 
 ```text
 sensor.energyhub_daily_house_consumption
@@ -609,112 +676,13 @@ sensor.energyhub_daily_solar_surplus_estimated
 sensor.energyhub_daily_grid_availability
 ```
 
-## Persistence
-
-Daily summaries are stored in:
+Persistence:
 
 ```text
 /data/daily_summary.json
 ```
 
-The service is idempotent.
-
-Retained MQTT messages received after an EnergyHub restart do not create unnecessary snapshot updates when the stored values are unchanged.
-
----
-
-# Daily Summary Architecture
-
-```text
-Home Assistant Daily Sensors
-            │
-            │ 23:50 snapshot
-            ▼
-Daily Solar Surplus Estimated
-            │
-            │ 23:51 MQTT publish
-            ▼
-energyhub/input/ha/*
-            │
-            ▼
-DailySummaryService
-            │
-            ├── Persistent Daily History
-            │      /data/daily_summary.json
-            │
-            └── EnergyHub MQTT Sensors
-                        │
-                        ▼
-               Home Assistant Dashboards
-                        │
-                        ▼
-              Future Decision Engine
-```
-
-The architectural responsibility is intentionally separated:
-
-```text
-Home Assistant
-    │
-    └── provides integration data and snapshot timing
-
-EnergyHub Daily Summary Engine
-    │
-    ├── owns the daily summary data model
-    ├── stores historical daily snapshots
-    └── publishes EnergyHub-owned daily sensors
-
-Decision Engine
-    │
-    └── consumes summarized facts
-```
-
 The Decision Engine must consume Daily Summary data rather than create historical facts itself.
-
----
-
-# Solar Surplus Terminology
-
-The old term:
-
-```text
-Daily Energy Balance
-```
-
-has been replaced with:
-
-```text
-Daily Solar Surplus Estimated
-```
-
-Meaning:
-
-```text
-Estimated solar energy that was probably not used today.
-```
-
-Formula:
-
-```text
-max(0, Solcast Forecast Today - Daily House Consumption)
-```
-
-The value is intentionally based on Solcast forecast rather than inverter PV telemetry.
-
-The PowMr inverter exposes PV1 telemetry only.
-
-PV2 telemetry is not available, and PV2 may remain unused when PV1 generation is sufficient for current house load and battery charging demand.
-
-Because of this, inverter PV telemetry cannot currently provide a reliable estimate of total daily solar generation.
-
-Daily Solar Surplus Estimated is used for:
-
-- historical statistics;
-- understanding unused solar potential;
-- future energy optimization;
-- future Decision Engine context.
-
-It should not be interpreted as meter-accurate unused solar energy.
 
 ---
 
@@ -728,46 +696,13 @@ Planned
 
 The PowMr inverter does not expose a reliable accumulated Grid Import counter.
 
-EnergyHub must therefore calculate or estimate Daily Grid Import.
+EnergyHub must calculate or estimate Daily Grid Import.
 
-Grid Import may occur in several different operating scenarios.
+Grid Import may occur during:
 
----
-
-## Solar Mode Fallback Grid Import
-
-Normal Solar Mode configuration:
-
-```text
-Setting 01 → SBU
-Setting 16 → OSO
-```
-
-Possible inverter behavior:
-
-```text
-Battery SOC reaches 15%
-        ↓
-Inverter switches house load to grid
-        ↓
-Solar charges battery
-        ↓
-Battery SOC reaches 30%
-        ↓
-Inverter switches house back to SBU operation
-```
-
-During the period between switching to grid and returning to SBU operation, house consumption is Grid Import.
-
-This situation may be completely acceptable when Grid Confidence is good.
-
-Future work:
-
-- reliably detect when house load is supplied by the grid;
-- accumulate imported house energy;
-- store Daily Grid Import;
-- publish Daily Grid Import through MQTT;
-- add Grid Import to the Energy Statistics dashboard.
+- Solar Mode low-battery fallback;
+- Hybrid charging;
+- Panic charging.
 
 Planned entity:
 
@@ -775,45 +710,7 @@ Planned entity:
 sensor.energyhub_daily_grid_import
 ```
 
----
-
-## Hybrid and Panic Grid Import
-
-Grid Import must also include electricity imported during controlled charging sessions.
-
-Examples:
-
-```text
-Hybrid charging
-→ house consumption supplied by grid
-→ battery charging supplied by grid
-
-Panic charging
-→ house consumption supplied by grid
-→ battery charging supplied by grid
-```
-
-Future estimation model:
-
-```text
-Daily Grid Import
-=
-House Load supplied by grid
-+
-Estimated Battery Charging Energy supplied by grid
-```
-
-The exact estimation method requires validation against real-system behavior.
-
-Daily Grid Import is initially intended for historical and informational purposes.
-
-It must not be treated as authoritative Decision Engine input until the estimation method is validated.
-
----
-
-# Future Energy Statistics
-
-The current 7-day Energy Statistics chart should eventually include:
+Future Energy Statistics:
 
 ```text
 House Consumption
@@ -821,8 +718,6 @@ Unused Solar
 Grid Import
 Grid Availability
 ```
-
-The exact chart title and final visual design may be adjusted when Daily Grid Import is implemented.
 
 ---
 
@@ -843,42 +738,7 @@ Grid Confidence is an operational metric.
 
 Daily Grid Availability is a historical metric.
 
-They are related but separate concepts.
-
-The architecture is:
-
-```text
-Grid Monitor
-      │
-      ▼
-Grid History Service
-      │
-      ├── Daily Availability
-      │        │
-      │        ▼
-      │   Daily Summary Engine
-      │
-      └── Rolling 48h Availability
-               │
-               ▼
-        Grid Stability Engine
-               │
-               ▼
-          Grid Confidence
-```
-
 Future Decision Engine behavior should use Grid Confidence to determine how aggressively EnergyHub protects battery reserve.
-
-Example:
-
-```text
-Grid Confidence good
-→ normal inverter fallback to grid may be acceptable
-
-Grid Confidence poor
-→ preserve battery reserve proactively
-→ consider Hybrid or Panic charging before critical SOC
-```
 
 ---
 
@@ -891,10 +751,6 @@ Initial design complete
 Implementation intentionally deferred
 ```
 
-The current Recovery Strategy is conservative.
-
-EnergyHub must first detect and classify failures before attempting recovery.
-
 Core principle:
 
 ```text
@@ -905,10 +761,6 @@ Classification
 Safe bounded recovery where appropriate
 ```
 
-EnergyHub must not use universal restart logic.
-
----
-
 ## Inverter Recovery
 
 Policy:
@@ -916,17 +768,6 @@ Policy:
 ```text
 EnergyHub must never automatically restart the inverter.
 ```
-
-Reasons:
-
-- the inverter owns its internal protection behavior;
-- the inverter already has internal restart and recovery settings;
-- different inverter faults require different responses;
-- automatic restart may be unsafe for faults such as over-temperature, overload or battery problems.
-
-Inverter warnings and faults are detection and reporting events only in Recovery v1.
-
----
 
 ## Battery Recovery
 
@@ -938,17 +779,6 @@ Battery Health anomalies
 → report
 → no automatic recovery action
 ```
-
-Battery SOC anomalies may indicate:
-
-- BMS behavior;
-- protection events;
-- SOC calculation problems;
-- battery communication problems.
-
-EnergyHub must not attempt automatic battery recovery based only on these warnings.
-
----
 
 ## EnergyHub Recovery
 
@@ -984,133 +814,225 @@ Require human attention
 
 Infinite restart loops are prohibited.
 
-The exact implementation remains future work.
-
----
-
 ## Home Assistant Failure Limitation
 
 EnergyHub and Home Assistant cannot reliably report their own failure if the entire Home Assistant platform is frozen or unavailable.
 
-Example:
-
-```text
-Home Assistant frozen
-        ↓
-EnergyHub unavailable
-        ↓
-MQTT notifications unavailable
-        ↓
-Home Assistant cannot report its own failure
-```
-
-Because of this, future infrastructure should include an external heartbeat or watchdog.
-
-Possible future architecture:
-
-```text
-Home Assistant / EnergyHub
-        ↓
-External Heartbeat
-        ↓
-Independent Monitor
-        ↓
-External Notification
-```
-
-This remains a future infrastructure task.
+Future infrastructure should include an external heartbeat or watchdog.
 
 ---
 
-# Current Real-System Findings
+# Current Priorities
 
-## JK BMS SOC Anomaly
-
-Observed abnormal SOC behavior included:
-
-```text
-53% → 1%
-33% → 100%
-```
-
-Further investigation identified a probable relationship with battery over-current protection.
-
-The battery BMS maximum configured current was approximately:
-
-```text
-150 A
-```
-
-while the inverter maximum charging current was configured to:
-
-```text
-160 A
-```
-
-When solar charging exceeded the BMS protection threshold, the BMS activated protection and abnormal SOC behavior was observed.
-
-EnergyHub now detects abnormal SOC changes through Battery Health Monitor v1.
+1. Complete documentation updates and commit the current Health Monitoring milestone.
+2. Move development to a new clean chat.
+3. Test programmatic Setting 01 control:
+   - SBU → SUB
+   - SUB → SBU
+4. Verify Setting 01 state and real inverter behavior.
+5. Add inverter operating mode telemetry where useful.
+6. Begin Solar / Hybrid / Panic control implementation.
+7. Begin Decision Engine v1 after inverter control is validated.
+8. Implement Daily Grid Import estimation.
+9. Revisit JK BMS integration.
+10. Investigate persistent `eeprom_fault`.
 
 ---
 
-## Battery Charging Current Discrepancy
+# Current Milestone Status
 
-During grid charging:
+## Foundation
+
+Status:
 
 ```text
-Inverter configured charging current → 30 A
-
-JK BMS observed current → approximately 30 A
-
-PowMr telemetry → approximately 23–24 A
+Complete
 ```
 
-The approximately 20–25% discrepancy is larger than expected.
+## Daily Summary Engine
 
-This is not currently critical for EnergyHub operation but requires future investigation.
+Status:
 
-Possible causes may include:
+```text
+v1 Complete
+```
 
-- different current measurement points;
-- inverter telemetry interpretation;
-- conversion losses;
-- protocol field meaning;
-- measurement calibration differences.
+## Health Monitoring
 
-No conclusion has yet been reached.
+Status:
+
+```text
+v1 Complete
+```
+
+Implemented:
+
+- Communication Health
+- Battery Health Monitor
+- Telemetry Freshness Monitor
+- Inverter Health Monitor
+- QPIWS polling
+- System Health aggregation
+- MQTT Discovery for all current health services
+
+## Recovery Strategy
+
+Status:
+
+```text
+Initial design complete
+```
+
+Implementation is intentionally deferred until specific recovery mechanisms are justified by real-system failure behavior.
+
+## Inverter Control
+
+Status:
+
+```text
+Next
+```
+
+Completed:
+
+- Setting 16 control tested successfully.
+- OSO, CSO and SNU mappings confirmed.
+
+Critical next step:
+
+```text
+Test Setting 01 control
+
+SBU ↔ SUB
+```
+
+## Operating Modes
+
+Status:
+
+```text
+Strategy defined
+Automatic execution not implemented
+```
+
+## Decision Engine
+
+Status:
+
+```text
+Planned after Inverter Control validation
+```
+
+## JK BMS Integration
+
+Status:
+
+```text
+Paused / Revisit
+```
+
+Goal:
+
+Provide direct cell-level battery information to Battery Health Monitor.
+
+JK BMS protocol handling and Battery Health analysis must remain separate architectural responsibilities.
 
 ---
 
-## Persistent EEPROM Fault
+# Development Workflow
 
-Real-system QPIWS testing returned:
-
-```text
-eeprom_fault = 1
-```
-
-All other observed warning and fault flags were zero.
-
-The inverter continued normal operation.
-
-The meaning of this persistent flag remains unknown.
-
-Possible explanations requiring investigation include:
-
-- real active fault;
-- historical or sticky fault;
-- firmware behavior;
-- protocol interpretation issue.
-
-The warning is intentionally not hidden.
-
-Current result:
+EnergyHub development follows this cycle:
 
 ```text
-Inverter Health → warning
-System Health → warning
+Architecture
+    ↓
+Implement
+    ↓
+Deploy
+    ↓
+Test on Real System
+    ↓
+Document
+    ↓
+Commit
 ```
 
-until the fault is understood.
+Every runtime change must be deployed and tested on the real EnergyHub system before commit.
+
+Documentation must be updated whenever architecture or confirmed system behavior changes.
+
+Git and project documentation remain the source of truth.
 
 ---
+
+# Next Session
+
+Start with the critical inverter-control experiment:
+
+```text
+Setting 01
+
+SBU ↔ SUB
+```
+
+The goal is to determine:
+
+1. Which PI30MAX command changes Setting 01.
+2. Whether the inverter accepts the command.
+3. Whether the real inverter display confirms the expected state.
+4. Whether EnergyHub can read the current Setting 01 state.
+5. Whether EnergyHub can safely restore SBU after switching to SUB.
+
+After successful validation:
+
+```text
+Setting 01 control
+        ↓
+Operating Mode control
+        ↓
+Solar / Hybrid / Panic implementation
+        ↓
+Decision Engine v1
+```
+
+Daily Grid Import estimation should also be implemented during the upcoming energy-management phase.
+
+---
+
+# Immediate Next Actions
+
+```text
+1. Commit current code and documentation
+2. Move to a new clean development chat
+3. Test Setting 01 SBU ↔ SUB control
+4. Add inverter mode telemetry where useful
+5. Implement controlled Solar / Hybrid / Panic transitions
+6. Begin Decision Engine v1
+7. Implement Daily Grid Import estimation
+8. Investigate persistent eeprom_fault
+9. Revisit JK BMS integration
+```
+
+---
+
+# Project Principle
+
+EnergyHub should evolve from:
+
+```text
+Monitoring
+    ↓
+Reliable Facts
+    ↓
+Health Awareness
+    ↓
+Recommendations
+    ↓
+Explainable Decisions
+    ↓
+Carefully Validated Automation
+```
+
+The system should not automate behavior simply because automation is technically possible.
+
+Every automated decision should be based on reliable facts, observable system behavior and validated real-world experience.
