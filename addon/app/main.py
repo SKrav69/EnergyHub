@@ -17,6 +17,8 @@ from app.mqtt.publisher import (
     publish_health_discovery,
     publish_inverter_health,
     publish_inverter_health_discovery,
+    publish_system_health,
+    publish_system_health_discovery,
     publish_telemetry_freshness,
     publish_telemetry_freshness_discovery,
 )
@@ -28,6 +30,7 @@ from app.services.grid_monitor import GridMonitor
 from app.services.grid_stability import GridStabilityEngine
 from app.services.health_monitor import HealthMonitor
 from app.services.inverter_health import InverterHealthMonitor
+from app.services.system_health import SystemHealthMonitor
 from app.services.telemetry import TelemetryService
 from app.services.telemetry_freshness import TelemetryFreshnessMonitor
 from app.services.watchdog import CommunicationWatchdog
@@ -57,6 +60,7 @@ def main():
     battery_health = BatteryHealthMonitor()
     telemetry_freshness = TelemetryFreshnessMonitor()
     inverter_health = InverterHealthMonitor()
+    system_health = SystemHealthMonitor()
 
     grid = GridMonitor()
     history = GridHistoryService()
@@ -67,6 +71,15 @@ def main():
 
     bus = EventBus()
     bus.subscribe(grid.handle_inverter_state)
+
+    def publish_all_health():
+        system_health.update(
+            health,
+            battery_health,
+            telemetry_freshness,
+            inverter_health,
+        )
+        publish_system_health(client, system_health)
 
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
@@ -108,6 +121,7 @@ def main():
     publish_battery_health_discovery(client)
     publish_telemetry_freshness_discovery(client)
     publish_inverter_health_discovery(client)
+    publish_system_health_discovery(client)
     publish_daily_summary_discovery(client)
     publish_daily_summary(client, daily_summary)
 
@@ -126,7 +140,6 @@ def main():
                 try:
                     warning_data = inverter.read_warnings()
                     inverter_health.update(warning_data)
-                    
                 except Exception as e:
                     inverter_health.failure()
                     log(f"ERROR: QPIWS warning read failed: {e}")
@@ -138,6 +151,7 @@ def main():
                 watchdog.failure()
                 health.update(watchdog)
                 publish_health(client, health)
+                publish_all_health()
                 client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
             else:
                 watchdog.success()
@@ -146,6 +160,8 @@ def main():
 
                 battery_health.update(state)
                 publish_battery_health(client, battery_health)
+
+                publish_all_health()
 
                 client.publish(AVAILABILITY_TOPIC, "online", retain=True)
 
@@ -160,6 +176,7 @@ def main():
             watchdog.failure()
             health.update(watchdog)
             publish_health(client, health)
+            publish_all_health()
 
             log("ERROR: mpp-solar timeout")
             client.publish(AVAILABILITY_TOPIC, "offline", retain=True)
@@ -171,6 +188,7 @@ def main():
             watchdog.failure()
             health.update(watchdog)
             publish_health(client, health)
+            publish_all_health()
 
             log("ERROR:")
             log(traceback.format_exc())
