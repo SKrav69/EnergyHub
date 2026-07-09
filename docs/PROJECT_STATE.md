@@ -898,12 +898,22 @@ Completed:
 - Setting 16 control tested successfully.
 - OSO, CSO and SNU mappings confirmed.
 
-Critical next step:
+### Confirmed inverter command mapping
 
-```text
-Test Setting 01 control
+Setting 01 — Output Source Priority:
+- POP01 → SUB
+- POP02 → SBU
 
-SBU ↔ SUB
+Verified by:
+- ACK response
+- QPIRI output_source_priority
+- QMOD mode change
+- physical inverter display
+
+Setting 16 — Charger Source Priority:
+- PCP01 → SNU
+- PCP02 → OSO
+- PCP03 → CSO
 ```
 
 ## Operating Modes

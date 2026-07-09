@@ -357,6 +357,22 @@ Optimization goals may change.
 
 The Decision Engine should remain flexible enough to support different strategies without redesigning the architecture.
 
+
+## 2026-07-09 — Inverter output mode control confirmed
+
+Decision:
+EnergyHub may use POP commands to control inverter Setting 01.
+
+Confirmed mapping:
+- POP01 → SUB
+- POP02 → SBU
+
+Reason:
+The mapping was verified safely using ACK response, QPIRI, QMOD and the physical inverter display.
+
+Impact:
+This unlocks the Inverter Strategy Controller for Solar, Hybrid and Panic modes.
+
 ---
 
 # Future Decisions

@@ -1,8 +1,8 @@
 # Communication Reliability
 
-EnergyHub continuously evaluates communication quality.
+EnergyHub continuously evaluates communication quality and prevents invalid or stale inverter data from being treated as valid system state.
 
-Current implementation:
+---
 
 ## Telemetry Validation
 
@@ -10,19 +10,19 @@ Telemetry containing invalid values is rejected.
 
 Examples:
 
-SOC = None
+- SOC = None
+- PV = None
+- Load = None
 
-PV = None
-
-Load = None
-
-These values are never published to MQTT.
+Invalid telemetry values are never published to MQTT as valid inverter state.
 
 ---
 
 ## Communication Watchdog
 
-Tracks:
+Tracks inverter communication reliability.
+
+Current scope:
 
 - Last successful telemetry
 - Consecutive communication failures
@@ -34,38 +34,125 @@ States:
 - Recovering
 - Offline
 
----
-
-## Health Monitor
-
-Monitors overall EnergyHub communication health.
-
-Current scope:
-
-- Communication state
-
-Future scope:
-
-- MQTT connectivity
-- Serial communication
-- Forecast availability
-- Self-tests
-- Notification status
+The Communication Watchdog provides the primary communication health state used by EnergyHub.
 
 ---
 
-## Planned Recovery
+## Telemetry Freshness Monitor
 
-1. Retry telemetry
+Monitors whether valid inverter telemetry continues to update.
 
-2. Reconnect serial
+Current implementation:
 
-3. Restart EnergyHub add-on
+- No valid telemetry for 60 seconds → stale
+- House Load unchanged for 5 minutes → warning
 
-4. Notify homeowner
+This monitor detects situations where communication may appear operational but telemetry is no longer updating correctly.
 
-5. Manual intervention
+---
 
-Future:
+## Inverter Health Monitor
 
-Restart Home Assistant if necessary.
+Monitors inverter warnings and faults independently from telemetry communication.
+
+Current implementation:
+
+- QPIWS queried every 60 seconds
+- Active inverter warning and fault flags are parsed
+- Inverter health state is published to MQTT
+
+Current observed inverter warning:
+
+- `eeprom_fault = 1`
+
+---
+
+## System Health Aggregation
+
+EnergyHub combines individual health components into an overall System Health state.
+
+Current components:
+
+- Communication Health
+- Battery Health
+- Telemetry Health
+- Inverter Health
+
+System Health provides a single high-level view of EnergyHub operational health.
+
+---
+
+## Write Command Reliability
+
+EnergyHub must not assume that an inverter write command succeeded only because the command returned `ACK`.
+
+Write operations should use explicit verification.
+
+Expected sequence:
+
+1. Send write command.
+2. Verify `ACK`.
+3. Read inverter configuration using `QPIRI`.
+4. Confirm that the requested setting is active.
+5. Report failure if the requested state is not confirmed.
+6. Apply recovery behavior when appropriate.
+
+This policy is especially important for future automatic inverter strategy transitions.
+
+---
+
+## Recovery Strategy
+
+Recovery behavior is the next development milestone.
+
+The recovery design must investigate:
+
+- MQTT connection failures
+- Network failures
+- Serial communication failures
+- `mpp-solar` timeouts and blocking
+- Partial inverter strategy transitions
+- Write command failures
+- Write verification failures
+
+Recovery responsibilities must be defined for each EnergyHub service.
+
+EnergyHub must distinguish between situations where:
+
+- automatic recovery should occur
+- retry should occur
+- the failure should only be reported
+- homeowner notification is required
+- manual intervention is required
+
+---
+
+## Planned Recovery Layers
+
+Possible recovery sequence:
+
+1. Retry operation.
+2. Retry telemetry or configuration read.
+3. Reconnect serial communication.
+4. Restore a known safe inverter configuration when appropriate.
+5. Restart the affected EnergyHub service.
+6. Restart the EnergyHub add-on.
+7. Notify homeowner.
+8. Require manual intervention.
+
+Restarting Home Assistant should only be considered as a last-resort recovery action.
+
+---
+
+## Future Work
+
+Planned reliability improvements:
+
+- MQTT connectivity monitoring
+- Serial connection recovery
+- `mpp-solar` timeout protection
+- Inverter command transaction handling
+- Partial transition recovery
+- External EnergyHub watchdog
+- Notification integration
+- Additional self-tests

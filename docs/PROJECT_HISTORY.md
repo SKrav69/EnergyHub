@@ -353,3 +353,18 @@ Heat pumps
 Matter
 
 Vendor-independent architecture
+
+# 2026-07-09
+
+## Inverter Setting 01 control confirmed
+
+### Added
+- Verified programmatic control of Output Source Priority.
+- Confirmed POP01 → SUB.
+- Confirmed POP02 → SBU.
+- Confirmed safe restore back to SBU.
+
+### Architecture
+EnergyHub can now control both key inverter strategy settings:
+- Setting 01: output source priority
+- Setting 16: charger source priority
