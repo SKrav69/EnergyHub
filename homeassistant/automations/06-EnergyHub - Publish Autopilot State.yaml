@@ -1,0 +1,17 @@
+alias: EnergyHub - Publish Autopilot State
+description: Publishes the EnergyHub Autopilot helper state to MQTT.
+triggers:
+  - trigger: state
+    entity_id:
+      - input_boolean.name_energyhub_autopilot
+  - trigger: homeassistant
+    event: start
+actions:
+  - delay:
+      seconds: 5
+  - action: mqtt.publish
+    data:
+      topic: energyhub/input/ha/autopilot
+      payload: "{{ states('input_boolean.name_energyhub_autopilot') }}"
+      retain: true
+mode: restart

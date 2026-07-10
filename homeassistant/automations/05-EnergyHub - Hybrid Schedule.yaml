@@ -1,0 +1,36 @@
+alias: EnergyHub - Hybrid Schedule
+description: Starts Hybrid at 23:50 and restores Solar at 07:00.
+triggers:
+  - trigger: time
+    at: "23:50:00"
+    id: start_hybrid
+  - trigger: time
+    at: "07:00:00"
+    id: restore_solar
+conditions:
+  - condition: state
+    entity_id: input_boolean.name_energyhub_autopilot
+    state: "on"
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - start_hybrid
+        sequence:
+          - action: mqtt.publish
+            data:
+              topic: energyhub/input/ha/inverter_mode
+              payload: hybrid
+              retain: false
+      - conditions:
+          - condition: trigger
+            id:
+              - restore_solar
+        sequence:
+          - action: mqtt.publish
+            data:
+              topic: energyhub/input/ha/inverter_mode
+              payload: solar
+              retain: false
+mode: single
