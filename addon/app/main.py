@@ -1,3 +1,4 @@
+import queue
 import subprocess
 import time
 import traceback
@@ -22,6 +23,8 @@ from app.mqtt.publisher import (
     publish_inverter_health_discovery,
     publish_inverter_settings,
     publish_inverter_settings_discovery,
+    publish_operating_mode,
+    publish_operating_mode_discovery,
     publish_system_health,
     publish_system_health_discovery,
     publish_telemetry_freshness,
@@ -48,6 +51,7 @@ from app.utils.logger import log
 
 INVERTER_WARNING_INTERVAL_SECONDS = 60
 INVERTER_SETTINGS_INTERVAL_SECONDS = 60
+HYBRID_TARGET_SOC = 80
 
 
 def main():
@@ -91,6 +95,8 @@ def main():
     stability = GridStabilityEngine(history)
     daily_summary = DailySummaryService(history)
 
+    mode_requests = queue.Queue(maxsize=1)
+
     last_warning_read = 0
     last_settings_read = 0
 
@@ -109,6 +115,68 @@ def main():
             client,
             system_health,
         )
+
+    def publish_controller_state():
+        publish_charger_source_priority(
+            client,
+            inverter_controller.known_charger_priority,
+        )
+
+        publish_operating_mode(
+            client,
+            inverter_controller,
+        )
+
+    def queue_mode_request(requested_mode):
+        try:
+            mode_requests.get_nowait()
+        except queue.Empty:
+            pass
+
+        try:
+            mode_requests.put_nowait(requested_mode)
+            log(f"Inverter mode request queued: {requested_mode}")
+        except queue.Full:
+            log(
+                "Could not queue inverter mode request: "
+                f"{requested_mode}"
+            )
+
+    def process_mode_request():
+        try:
+            requested_mode = mode_requests.get_nowait()
+        except queue.Empty:
+            return
+
+        if not autopilot.is_enabled():
+            log(
+                "Ignore inverter mode request "
+                f"{requested_mode}: Autopilot disabled"
+            )
+            return
+
+        log(
+            "Processing inverter mode request: "
+            f"{requested_mode}"
+        )
+
+        if requested_mode == "hybrid":
+            inverter_controller.enter_hybrid()
+
+        elif requested_mode == "hybrid_grid_hold":
+            inverter_controller.enter_hybrid_grid_hold()
+
+        elif requested_mode == "solar":
+            inverter_controller.restore_solar()
+
+        else:
+            log(
+                "Ignore unsupported inverter mode request: "
+                f"{requested_mode}"
+            )
+            return
+
+        publish_controller_state()
 
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
@@ -151,39 +219,7 @@ def main():
 
         if key == "inverter_mode":
             requested_mode = payload.strip().lower()
-
-            if not autopilot.is_enabled():
-                log(
-                    "Ignore inverter mode request "
-                    f"{requested_mode}: "
-                    "Autopilot disabled"
-                )
-
-                return
-
-            if requested_mode == "hybrid":
-                if inverter_controller.enter_hybrid():
-                    publish_charger_source_priority(
-                        client,
-                        inverter_controller.known_charger_priority,
-                    )
-
-                return
-
-            if requested_mode == "solar":
-                if inverter_controller.restore_solar():
-                    publish_charger_source_priority(
-                        client,
-                        inverter_controller.known_charger_priority,
-                    )
-
-                return
-
-            log(
-                "Ignore unsupported inverter mode "
-                f"request: {requested_mode}"
-            )
-
+            queue_mode_request(requested_mode)
             return
 
         daily_summary.update_input(
@@ -232,6 +268,7 @@ def main():
     publish_telemetry_freshness_discovery(client)
     publish_inverter_health_discovery(client)
     publish_inverter_settings_discovery(client)
+    publish_operating_mode_discovery(client)
     publish_autopilot_discovery(client)
     publish_system_health_discovery(client)
     publish_daily_summary_discovery(client)
@@ -251,6 +288,11 @@ def main():
         "unknown",
     )
 
+    publish_operating_mode(
+        client,
+        inverter_controller,
+    )
+
     client.publish(
         AVAILABILITY_TOPIC,
         "online",
@@ -259,6 +301,9 @@ def main():
 
     while True:
         try:
+            # All inverter mode transitions now run in this thread.
+            process_mode_request()
+
             data = inverter.read_telemetry()
             state = telemetry.process(data)
 
@@ -276,13 +321,8 @@ def main():
                 >= INVERTER_WARNING_INTERVAL_SECONDS
             ):
                 try:
-                    warning_data = (
-                        inverter.read_warnings()
-                    )
-
-                    inverter_health.update(
-                        warning_data
-                    )
+                    warning_data = inverter.read_warnings()
+                    inverter_health.update(warning_data)
 
                 except Exception as e:
                     inverter_health.failure()
@@ -304,25 +344,19 @@ def main():
                 >= INVERTER_SETTINGS_INTERVAL_SECONDS
             ):
                 try:
-                    settings_data = (
-                        inverter.read_settings()
-                    )
+                    settings_data = inverter.read_settings()
 
                     publish_inverter_settings(
                         client,
                         settings_data,
                     )
 
-                    output_priority = (
-                        settings_data.get(
-                            "output_source_priority"
-                        )
+                    output_priority = settings_data.get(
+                        "output_source_priority"
                     )
 
-                    raw_charger_priority = (
-                        settings_data.get(
-                            "charger_source_priority"
-                        )
+                    raw_charger_priority = settings_data.get(
+                        "charger_source_priority"
                     )
 
                     log(
@@ -372,6 +406,26 @@ def main():
                     client,
                     battery_health,
                 )
+
+                if (
+                    autopilot.is_enabled()
+                    and inverter_controller.mode
+                    == "hybrid_charging"
+                ):
+                    soc = state.battery_soc
+
+                    if (
+                        soc is not None
+                        and soc >= HYBRID_TARGET_SOC
+                    ):
+                        log(
+                            "Hybrid target reached: "
+                            f"SOC={soc}%. "
+                            "Switching to Grid Hold."
+                        )
+
+                        inverter_controller.enter_hybrid_grid_hold()
+                        publish_controller_state()
 
                 publish_all_health()
 

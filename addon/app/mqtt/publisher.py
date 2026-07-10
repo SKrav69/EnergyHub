@@ -533,3 +533,38 @@ def _publish_sensor_discovery(client, device, sensors):
             json.dumps(payload),
             retain=True,
         )
+
+def publish_operating_mode(client, inverter_controller):
+    for key, value in inverter_controller.mqtt_values().items():
+        client.publish(
+            f"{BASE_TOPIC}/{key}/state",
+            str(value),
+            retain=True,
+        )
+
+
+def publish_operating_mode_discovery(client):
+    device = _energyhub_device()
+
+    sensors = {
+        "operating_mode": (
+            "Operating Mode",
+            None,
+            None,
+            None,
+        ),
+        "operating_mode_reason": (
+            "Operating Mode Reason",
+            None,
+            None,
+            None,
+        ),
+    }
+
+    _publish_sensor_discovery(
+        client,
+        device,
+        sensors,
+    )
+
+    log("Operating Mode MQTT discovery published")
