@@ -3,15 +3,20 @@ class GridStabilityEngine:
         self.history = history
 
     def level(self):
-        availability = self.history.availability_percent(48)
+        availability_24h = self.history.availability_percent(24)
+        availability_48h = self.history.availability_percent(48)
 
-        if availability >= 90:
+        weighted_availability = (
+            availability_24h + availability_48h
+        ) / 2
+
+        if weighted_availability >= 90:
             return "normal"
 
-        if availability >= 60:
+        if weighted_availability >= 60:
             return "unstable"
 
-        if availability >= 30:
+        if weighted_availability >= 30:
             return "risk"
 
         return "panic"
