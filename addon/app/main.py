@@ -54,6 +54,12 @@ INVERTER_SETTINGS_INTERVAL_SECONDS = 60
 HYBRID_TARGET_SOC = 80
 
 
+MENU_01_QPIRI_MAP = {
+    "Solar Battery Utility": "SBU",
+    "Solar Utility Battery": "SUB",
+}
+
+
 def main():
     options = load_options()
 
@@ -135,7 +141,12 @@ def main():
 
         try:
             mode_requests.put_nowait(requested_mode)
-            log(f"Inverter mode request queued: {requested_mode}")
+
+            log(
+                f"Inverter mode request queued: "
+                f"{requested_mode}"
+            )
+
         except queue.Full:
             log(
                 "Could not queue inverter mode request: "
@@ -151,7 +162,8 @@ def main():
         if not autopilot.is_enabled():
             log(
                 "Ignore inverter mode request "
-                f"{requested_mode}: Autopilot disabled"
+                f"{requested_mode}: "
+                "Autopilot disabled"
             )
             return
 
@@ -301,7 +313,7 @@ def main():
 
     while True:
         try:
-            # All inverter mode transitions now run in this thread.
+            # All inverter mode transitions run in the main thread.
             process_mode_request()
 
             data = inverter.read_telemetry()
@@ -322,7 +334,10 @@ def main():
             ):
                 try:
                     warning_data = inverter.read_warnings()
-                    inverter_health.update(warning_data)
+
+                    inverter_health.update(
+                        warning_data
+                    )
 
                 except Exception as e:
                     inverter_health.failure()
@@ -351,19 +366,24 @@ def main():
                         settings_data,
                     )
 
-                    output_priority = settings_data.get(
+                    raw_menu_01 = settings_data.get(
                         "output_source_priority"
                     )
 
-                    raw_charger_priority = settings_data.get(
-                        "charger_source_priority"
+                    menu_01 = MENU_01_QPIRI_MAP.get(
+                        raw_menu_01,
+                        "unknown",
+                    )
+
+                    menu_16 = (
+                        inverter_controller
+                        .known_charger_priority
                     )
 
                     log(
                         "Inverter settings updated: "
-                        f"output={output_priority}, "
-                        "charger_raw="
-                        f"{raw_charger_priority}"
+                        f"Menu 01={menu_01}, "
+                        f"Menu 16={menu_16}"
                     )
 
                 except Exception as e:
@@ -425,6 +445,7 @@ def main():
                         )
 
                         inverter_controller.enter_hybrid_grid_hold()
+
                         publish_controller_state()
 
                 publish_all_health()
