@@ -25,6 +25,8 @@ from app.mqtt.publisher import (
     publish_inverter_settings_discovery,
     publish_operating_mode,
     publish_operating_mode_discovery,
+    publish_panic_decision,
+    publish_panic_decision_discovery,
     publish_system_health,
     publish_system_health_discovery,
     publish_telemetry_freshness,
@@ -40,6 +42,7 @@ from app.services.grid_stability import GridStabilityEngine
 from app.services.health_monitor import HealthMonitor
 from app.services.inverter_controller import InverterController
 from app.services.inverter_health import InverterHealthMonitor
+from app.services.panic_decision import PanicDecisionEngine
 from app.services.system_health import SystemHealthMonitor
 from app.services.telemetry import TelemetryService
 from app.services.telemetry_freshness import (
@@ -51,12 +54,23 @@ from app.utils.logger import log
 
 INVERTER_WARNING_INTERVAL_SECONDS = 60
 INVERTER_SETTINGS_INTERVAL_SECONDS = 60
-HYBRID_TARGET_SOC = 80
+PANIC_EVALUATION_INTERVAL_SECONDS = 15 * 60
 
+HYBRID_TARGET_SOC = 80
+PANIC_DEFAULT_TARGET_SOC = 95
 
 MENU_01_QPIRI_MAP = {
     "Solar Battery Utility": "SBU",
     "Solar Utility Battery": "SUB",
+}
+
+AUTOPILOT_SAFE_RECOVERY_MODES = {
+    "unknown",
+    "hybrid_charging",
+    "hybrid_grid_hold",
+    "panic",
+    "transitioning",
+    "transition_failed",
 }
 
 
@@ -100,11 +114,17 @@ def main():
     history = GridHistoryService()
     stability = GridStabilityEngine(history)
     daily_summary = DailySummaryService(history)
+    panic_decision = PanicDecisionEngine()
 
     mode_requests = queue.Queue(maxsize=1)
 
+    panic_target_soc = PANIC_DEFAULT_TARGET_SOC
+
     last_warning_read = 0
     last_settings_read = 0
+    last_panic_evaluation = 0
+
+    panic_evaluation_requested = False
 
     bus = EventBus()
     bus.subscribe(grid.handle_inverter_state)
@@ -143,7 +163,7 @@ def main():
             mode_requests.put_nowait(requested_mode)
 
             log(
-                f"Inverter mode request queued: "
+                "Inverter mode request queued: "
                 f"{requested_mode}"
             )
 
@@ -154,9 +174,32 @@ def main():
             )
 
     def process_mode_request():
+        nonlocal panic_target_soc
+        nonlocal panic_evaluation_requested
+
         try:
             requested_mode = mode_requests.get_nowait()
         except queue.Empty:
+            return
+
+        if requested_mode == "safe_solar":
+            if (
+                inverter_controller.mode
+                not in AUTOPILOT_SAFE_RECOVERY_MODES
+            ):
+                log(
+                    "Autopilot safe Solar recovery not required: "
+                    f"current mode={inverter_controller.mode}"
+                )
+                return
+
+            log(
+                "Autopilot disabled during active or unknown "
+                "strategy. Performing final safe Solar recovery."
+            )
+
+            inverter_controller.restore_solar()
+            publish_controller_state()
             return
 
         if not autopilot.is_enabled():
@@ -181,6 +224,36 @@ def main():
         elif requested_mode == "solar":
             inverter_controller.restore_solar()
 
+        elif requested_mode == "panic":
+            panic_target_soc = PANIC_DEFAULT_TARGET_SOC
+
+            log(
+                "Manual Panic requested: "
+                f"target SOC={panic_target_soc}%"
+            )
+
+            inverter_controller.enter_panic()
+
+        elif requested_mode == "panic_80":
+            panic_target_soc = 80
+
+            log(
+                "Automatic Panic requested: "
+                f"target SOC={panic_target_soc}%"
+            )
+
+            inverter_controller.enter_panic()
+
+        elif requested_mode == "panic_95":
+            panic_target_soc = 95
+
+            log(
+                "Automatic Panic requested: "
+                f"target SOC={panic_target_soc}%"
+            )
+
+            inverter_controller.enter_panic()
+
         else:
             log(
                 "Ignore unsupported inverter mode request: "
@@ -189,6 +262,59 @@ def main():
             return
 
         publish_controller_state()
+
+        if inverter_controller.mode == "solar":
+            panic_evaluation_requested = True
+
+            log(
+                "Automatic Panic reevaluation requested "
+                "after Solar confirmation"
+            )
+
+    def evaluate_panic(state):
+        grid_confidence = stability.level()
+
+        forecast_today = daily_summary.inputs.get(
+            "solar_forecast_today"
+        )
+
+        consumption_yesterday = daily_summary.inputs.get(
+            "daily_house_consumption"
+        )
+
+        decision = panic_decision.evaluate(
+            autopilot_enabled=autopilot.is_enabled(),
+            operating_mode=inverter_controller.mode,
+            grid_confidence=grid_confidence,
+            pv_power=state.pv_power,
+            battery_soc=state.battery_soc,
+            forecast_today=forecast_today,
+            consumption_yesterday=consumption_yesterday,
+        )
+
+        publish_panic_decision(
+            client,
+            panic_decision,
+        )
+
+        log(
+            "Automatic Panic evaluation: "
+            f"status={decision['status']}, "
+            f"reason={decision['reason']}"
+        )
+
+        requested_mode = decision.get("request")
+
+        if requested_mode is None:
+            return
+
+        log(
+            "Automatic Panic triggered: "
+            f"request={requested_mode}, "
+            f"target={decision['target_soc']}%"
+        )
+
+        queue_mode_request(requested_mode)
 
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
@@ -221,11 +347,19 @@ def main():
         key = topic.replace(prefix, "")
 
         if key == "autopilot":
+            was_enabled = autopilot.is_enabled()
+
             if autopilot.update(payload):
                 publish_autopilot(
                     client,
                     autopilot,
                 )
+
+                if (
+                    was_enabled
+                    and not autopilot.is_enabled()
+                ):
+                    queue_mode_request("safe_solar")
 
             return
 
@@ -281,6 +415,7 @@ def main():
     publish_inverter_health_discovery(client)
     publish_inverter_settings_discovery(client)
     publish_operating_mode_discovery(client)
+    publish_panic_decision_discovery(client)
     publish_autopilot_discovery(client)
     publish_system_health_discovery(client)
     publish_daily_summary_discovery(client)
@@ -293,6 +428,11 @@ def main():
     publish_autopilot(
         client,
         autopilot,
+    )
+
+    publish_panic_decision(
+        client,
+        panic_decision,
     )
 
     publish_charger_source_priority(
@@ -313,7 +453,6 @@ def main():
 
     while True:
         try:
-            # All inverter mode transitions run in the main thread.
             process_mode_request()
 
             data = inverter.read_telemetry()
@@ -427,26 +566,68 @@ def main():
                     battery_health,
                 )
 
+                soc = state.battery_soc
+
                 if (
                     autopilot.is_enabled()
                     and inverter_controller.mode
                     == "hybrid_charging"
+                    and soc is not None
+                    and soc >= HYBRID_TARGET_SOC
                 ):
-                    soc = state.battery_soc
+                    log(
+                        "Hybrid target reached: "
+                        f"SOC={soc}%. "
+                        "Switching to Grid Hold."
+                    )
 
-                    if (
-                        soc is not None
-                        and soc >= HYBRID_TARGET_SOC
-                    ):
+                    inverter_controller.enter_hybrid_grid_hold()
+                    publish_controller_state()
+
+                if (
+                    autopilot.is_enabled()
+                    and inverter_controller.mode == "panic"
+                    and soc is not None
+                    and soc >= panic_target_soc
+                ):
+                    log(
+                        "Panic target reached: "
+                        f"SOC={soc}%, "
+                        f"target={panic_target_soc}%. "
+                        "Returning to Solar."
+                    )
+
+                    solar_restored = (
+                        inverter_controller.restore_solar()
+                    )
+
+                    publish_controller_state()
+
+                    if solar_restored:
+                        panic_evaluation_requested = True
+
                         log(
-                            "Hybrid target reached: "
-                            f"SOC={soc}%. "
-                            "Switching to Grid Hold."
+                            "Automatic Panic reevaluation requested "
+                            "after Panic returned to Solar"
                         )
 
-                        inverter_controller.enter_hybrid_grid_hold()
+                    else:
+                        log(
+                            "Panic exit failed: "
+                            "Solar was not restored"
+                        )
 
-                        publish_controller_state()
+                if (
+                    panic_evaluation_requested
+                    or (
+                        now - last_panic_evaluation
+                        >= PANIC_EVALUATION_INTERVAL_SECONDS
+                    )
+                ):
+                    evaluate_panic(state)
+
+                    last_panic_evaluation = now
+                    panic_evaluation_requested = False
 
                 publish_all_health()
 

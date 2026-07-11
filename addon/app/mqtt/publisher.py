@@ -568,3 +568,38 @@ def publish_operating_mode_discovery(client):
     )
 
     log("Operating Mode MQTT discovery published")
+
+def publish_panic_decision(client, panic_decision):
+    for key, value in panic_decision.mqtt_values().items():
+        client.publish(
+            f"{BASE_TOPIC}/{key}/state",
+            str(value),
+            retain=True,
+        )
+
+
+def publish_panic_decision_discovery(client):
+    device = _energyhub_device()
+
+    sensors = {
+        "panic_decision": (
+            "Panic Decision",
+            None,
+            None,
+            None,
+        ),
+        "panic_decision_reason": (
+            "Panic Decision Reason",
+            None,
+            None,
+            None,
+        ),
+    }
+
+    _publish_sensor_discovery(
+        client,
+        device,
+        sensors,
+    )
+
+    log("Panic Decision MQTT discovery published")
