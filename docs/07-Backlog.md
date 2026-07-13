@@ -1,315 +1,133 @@
 # EnergyHub Backlog
 
-> Ideas are valuable. A backlog keeps them organized until the right time.
+> The Backlog contains future work. Completed implementation belongs in Project State and Project History.
 
 ---
 
 # High Priority
 
-## Inverter Control
+## Recovery Strategy Implementation
 
 Status:
 
-Critical next development phase.
+Design complete. Implementation is the next major development milestone.
 
-Confirmed Setting 16 control:
+Goals:
 
-```text
-PCP02 → OSO
-PCP03 → CSO
-PCP01 → SNU
-```
+- define recovery responsibilities for each EnergyHub service;
+- investigate MQTT connection failures;
+- investigate network failures;
+- investigate serial communication failures;
+- investigate `mpp-solar` timeouts and blocking;
+- investigate Home Assistant connectivity failures;
+- implement limited automatic recovery where safe;
+- keep automatic recovery bounded and verifiable;
+- stop automatic recovery after repeated failure;
+- add recovery notifications;
+- investigate external heartbeat/watchdog monitoring for cases where Home Assistant or EnergyHub is completely unavailable.
 
-Current operating strategy:
-
-```text
-SOLAR
-Setting 01 → SBU
-Setting 16 → OSO
-
-HYBRID charging session
-Setting 01 → SUB
-Setting 16 → SNU
-Target SOC → 80%
-Then restore → SBU + OSO
-
-PANIC charging session
-Setting 01 → SUB
-Setting 16 → SNU
-Target SOC → 95%
-Then restore → SBU + OSO
-```
-
-Critical next research:
-
-- Identify the command used to change Setting 01.
-- Test programmatic switching:
+Confirmed constraints:
 
 ```text
-SBU ↔ SUB
+EnergyHub must never automatically restart the inverter.
+
+Detection and recovery are separate responsibilities.
+
+Automatic recovery must be bounded.
+
+Infinite retry loops are prohibited.
 ```
 
-- Verify the real inverter display after each command.
-- Verify inverter behavior after each command.
-- Verify safe restoration to SBU + OSO.
-- Add inverter operating mode telemetry where useful.
-- Add current Setting 01 state.
-- Add current Setting 16 state.
+Detailed architecture:
 
-Automatic Solar / Hybrid / Panic mode execution must not begin until Setting 01 switching is confirmed on the real inverter.
+```text
+13-Recovery-Strategy.md
+```
 
 ---
 
-## Recovery Strategy
+## Grid Import Real-System Validation
 
 Status:
 
-Initial design complete.
+Implementation complete. Real-system validation required.
 
-Completed:
+Goals:
 
-- Communication Watchdog.
-- Communication Health monitoring.
-- Battery Health Monitor v1.
-- Telemetry Freshness Monitor v1.
-- Inverter Health Monitor v1.
-- System Health aggregation v1.
-- `QPIWS` warning and fault reading.
-- Initial Recovery Strategy principles defined.
+- test Grid Import Power Estimated in Solar;
+- verify Solar-mode noise suppression;
+- test Grid Import Power Estimated during Hybrid Charging;
+- test Grid Import Power Estimated during Hybrid Grid Hold;
+- test Grid Import Power Estimated during Panic;
+- verify daily energy integration;
+- verify persistence across EnergyHub restart;
+- verify daily reset behavior;
+- compare estimates with observed inverter and household behavior;
+- correct formulas only when real-system observations justify changes.
 
-Confirmed principles:
-
-- EnergyHub must never automatically restart the inverter.
-- The inverter owns its internal protection and restart behavior.
-- Detection and recovery are separate responsibilities.
-- Battery anomalies are warning events only.
-- Inverter warnings and faults are warning events only in Recovery v1.
-- Automatic recovery must be bounded.
-- Infinite restart loops are prohibited.
-
-Future work:
-
-- Investigate MQTT connection failures.
-- Investigate network failures.
-- Investigate serial communication failures.
-- Investigate `mpp-solar` timeouts and blocking.
-- Investigate Home Assistant connectivity failures.
-- Define recovery responsibilities for each EnergyHub service.
-- Implement limited EnergyHub self-recovery where appropriate.
-- Allow no more than one initial automatic recovery attempt.
-- Allow a possible second recovery attempt after approximately 30 minutes.
-- Stop automatic recovery after repeated failure.
-- Add recovery notifications.
-- Investigate external heartbeat/watchdog monitoring for cases where Home Assistant or EnergyHub is completely unavailable.
-
----
-
-## Battery Health Monitoring
-
-Status:
-
-v1 Complete.
-
-Implemented:
-
-- Low SOC detection.
-- SOC jump detection.
-- Battery Health MQTT sensors.
-- Battery Health reason reporting.
-
-Current rules:
+Current entities:
 
 ```text
-SOC < 15%
-→ warning
-
-SOC between 15% and 95%
-AND absolute SOC change >= 2%
-→ warning
+sensor.energyhub_grid_import_power_estimated
+sensor.energyhub_daily_grid_import_estimated
 ```
 
-Battery Health thresholds are technical configuration values and may differ between battery systems.
-
-Future work:
-
-- Preserve diagnostic information for battery anomaly events.
-- Add Battery Health alerts.
-- Investigate additional generic battery anomaly detection rules if required.
-- Add configuration options for Battery Health thresholds if required.
+Daily Grid Import remains informational and not billing-grade.
 
 ---
 
-## Telemetry Freshness Monitoring
+## Hybrid Strategy Validation
 
 Status:
 
-v1 Complete.
+Hybrid Decision and execution v1 implemented. Real-world validation required.
 
-Implemented:
+Goals:
 
-- Detection of missing valid telemetry.
-- Detection of House Load remaining exactly unchanged for 5 minutes.
-- Telemetry Freshness MQTT sensors.
-- Telemetry Freshness reason reporting.
-
-Current rules:
-
-```text
-No valid telemetry for 60 seconds
-→ stale
-
-House Load unchanged for 5 minutes
-→ warning
-```
-
-Architecture decision:
-
-Battery SOC, voltage and current are intentionally excluded from frozen telemetry detection because battery values may legitimately remain unchanged for long periods.
-
-Future work:
-
-- Validate House Load unchanged detection against long-term real-system behavior.
-- Investigate additional telemetry verification methods if false warnings occur.
-- Consider additional command verification using `QMOD` or other supported inverter commands.
+- test daily Hybrid evaluation;
+- verify Solar decision when forecast is sufficient;
+- verify Hybrid decision when forecast is insufficient;
+- verify Hybrid Charging entry;
+- verify target SOC behavior;
+- verify transition from Hybrid Charging to Hybrid Grid Hold;
+- verify morning return to Solar;
+- verify behavior when the add-on restarts during Hybrid;
+- verify notification behavior;
+- inspect edge cases around missing or stale decision inputs.
 
 ---
 
-## Inverter Health Monitoring
+## Restart Strategy Reconstruction
 
 Status:
 
-v1 Complete.
-
-Implemented:
-
-- `QPIWS` polling every 60 seconds.
-- Automatic parsing of inverter warning and fault flags.
-- Inverter Health MQTT sensors.
-- Inverter Health reason reporting.
-
-Current finding:
-
-```text
-eeprom_fault = 1
-```
-
-The inverter currently reports a persistent EEPROM fault while all other observed `QPIWS` flags remain zero.
-
-Future work:
-
-- Investigate the meaning and operational significance of persistent `eeprom_fault`.
-- Determine whether the flag represents:
-  - a real active fault;
-  - a historical/sticky fault;
-  - firmware behavior;
-  - a protocol interpretation issue.
-- Classify inverter warnings and faults by severity.
-- Add notifications for significant inverter warnings and faults.
-
----
-
-## System Health
-
-Status:
-
-v1 Complete.
-
-Implemented:
-
-- System Health aggregation.
-- System Health MQTT sensor.
-- System Health Reason MQTT sensor.
-
-Current inputs:
-
-```text
-Communication Health
-        +
-Battery Health
-        +
-Telemetry Freshness
-        +
-Inverter Health
-        ↓
-System Health
-```
-
-Future work:
-
-- Improve health severity classification.
-- Add notification policies.
-- Integrate System Health into Developer Dashboard.
-- Determine how persistent known inverter warnings should affect long-term System Health status.
-
----
-
-## Daily Grid Import
-
-Status:
-
-Planned.
+High priority.
 
 Goal:
 
-Estimate and store daily electricity imported from the grid.
+Recover the real EnergyHub strategy after restart from verified inverter settings rather than time alone.
 
-### Solar Mode Fallback Import
-
-Normal configuration:
+Initial mapping:
 
 ```text
-Setting 01 → SBU
-Setting 16 → OSO
+SBU + OSO
+→ Solar
+
+SUB + SNU
+→ Hybrid Charging
+
+SUB + OSO
+→ Hybrid Grid Hold
 ```
-
-Possible behavior:
-
-```text
-Battery SOC reaches 15%
-        ↓
-Inverter switches house load to grid
-        ↓
-Solar charges battery
-        ↓
-Battery SOC reaches 30%
-        ↓
-Inverter switches house back to SBU operation
-```
-
-During the period between switching to grid and returning to SBU operation, house consumption is Grid Import.
 
 Future work:
 
-- Detect when house load is powered from the grid.
-- Accumulate imported energy during the fallback period.
-- Store Daily Grid Import.
-- Publish:
-
-```text
-sensor.energyhub_daily_grid_import
-```
-
-- Add Grid Import to the Energy Statistics dashboard.
-
-### Hybrid and Panic Grid Import
-
-Grid Import must also include electricity imported during controlled charging sessions.
-
-Future estimation model:
-
-```text
-Daily Grid Import
-=
-House Load supplied by grid
-+
-Estimated Battery Charging Energy supplied by grid
-```
-
-The PowMr inverter does not expose a reliable accumulated Grid Import counter.
-
-EnergyHub must therefore calculate or estimate Grid Import from available telemetry and controlled operating state.
-
-Daily Grid Import is initially intended for historical and informational purposes.
+- verify Setting 01 and Setting 16 after startup;
+- reconstruct Operating Mode;
+- avoid unnecessary inverter commands;
+- handle inconsistent or unknown combinations safely;
+- determine how to distinguish strategies that may use identical inverter settings;
+- integrate reconstruction with Recovery Strategy responsibilities.
 
 ---
 
@@ -317,262 +135,273 @@ Daily Grid Import is initially intended for historical and informational purpose
 
 Status:
 
-Research and Decision Engine design required.
+Research and Decision Engine development required.
 
 Problem:
 
-A battery charged to the Hybrid target during the night may still be depleted during the following day.
+A battery charged during the night may still be depleted before the next safe charging opportunity.
 
-Example:
-
-```text
-Night
-        ↓
-Hybrid Mode charges battery to 80%
-        ↓
-Day
-        ↓
-Low solar generation
-+
-High house consumption
-        ↓
-SOC falls
-        ↓
-Grid Confidence is poor
-        ↓
-Risk of battery depletion
-        ↓
-Grid may be unavailable when battery reaches critical SOC
-```
-
-Waiting until the inverter reaches the normal 15% fallback threshold may be unsafe when Grid Confidence is poor.
-
-Possible strategy:
-
-```text
-Grid Confidence poor
-+
-SOC falling
-+
-Remaining Solar Forecast low
-+
-Expected House Consumption high
-+
-Projected Battery Reserve insufficient
-        ↓
-Temporary Panic charging while grid is available
-```
-
-Future work:
-
-- Estimate whether current battery reserve is sufficient until the next safe charging opportunity.
-- Estimate remaining solar production for the current day.
-- Estimate expected house consumption.
-- Consider current SOC trend.
-- Consider Grid Confidence.
-- Define safe battery reserve thresholds.
-- Define daytime Panic charging triggers.
-- Define when Panic charging should stop.
-- Avoid unnecessary daytime grid charging when Grid Confidence is good.
-
-Core future Decision Engine question:
+Core question:
 
 ```text
 Can the house safely survive until the next expected charging opportunity?
 ```
 
----
+Possible inputs:
 
-## Operating Modes
-
-Status:
-
-Strategy defined. Automatic execution not implemented.
-
-Current mode names:
-
-- Solar
-- Hybrid
-- Panic
-- Away
-
-### Solar Mode
-
-Expected inverter configuration:
-
-```text
-Setting 01 → SBU
-Setting 16 → OSO
-```
-
-### Hybrid Mode
-
-Expected charging configuration:
-
-```text
-Setting 01 → SUB
-Setting 16 → SNU
-```
-
-Initial target:
-
-```text
-Battery SOC → 80%
-```
-
-After target is reached:
-
-```text
-Restore SBU + OSO
-```
-
-### Panic Mode
-
-Expected charging configuration:
-
-```text
-Setting 01 → SUB
-Setting 16 → SNU
-```
-
-Initial target:
-
-```text
-Battery SOC → 95%
-```
-
-After target is reached:
-
-```text
-Restore SBU + OSO
-```
-
-Panic charging may occur during the night or day whenever Grid Confidence is poor and EnergyHub predicts insufficient battery reserve.
-
-### Away Mode
-
-Status:
-
-Requires additional design.
-
-Current concept:
-
-- prioritize safe autonomous house operation;
-- use excess solar energy for flexible heating loads;
-- protect battery reserve;
-- reduce unnecessary grid import.
-
----
-
-## Decision Engine
-
-Status:
-
-Planned after Inverter Control validation.
+- current Battery SOC;
+- SOC trend;
+- remaining solar production;
+- expected House Consumption;
+- Grid Confidence;
+- current Operating Mode;
+- time until the next charging opportunity.
 
 Goals:
 
-- Produce Operating Mode recommendations.
-- Produce Battery Strategy recommendations.
-- Produce Heating Strategy recommendations.
-- Produce Flexible Load recommendations.
-- Protect battery reserve proactively.
-- Determine whether the house can safely operate until the next expected charging opportunity.
-- Explain every significant recommendation.
-- Publish Recommended Mode.
-- Publish Reason.
-- Publish Recommended Action.
-
-Decision inputs may include:
-
-- Grid Confidence.
-- Grid Availability history.
-- Current Battery SOC.
-- Battery SOC trend.
-- Daily House Consumption.
-- Expected House Consumption.
-- Solar Forecast Today.
-- Solar Forecast Tomorrow.
-- Remaining Solar Forecast.
-- Current Operating Mode.
-- Time of day.
-- Night tariff period.
-- System Health.
-
-Initial implementation should remain recommendation-only where practical.
-
-Automatic execution should be introduced progressively after inverter control and Decision Engine behavior have been validated against real household behavior.
+- estimate whether current battery reserve is sufficient;
+- estimate remaining solar production for the current day;
+- estimate expected House Consumption;
+- consider current SOC trend;
+- consider Grid Confidence;
+- define safe reserve thresholds;
+- improve daytime Panic triggers;
+- avoid unnecessary daytime Grid Import when energy risk is low.
 
 ---
 
-## Home Assistant
+## EnergyHub 1.1 Configurable Strategy Parameters
 
-Goals:
+Status:
 
-- Family Dashboard.
-- Engineering Dashboard.
-- Better status indicators.
-- Continue dashboard improvements as new EnergyHub services and entities are added.
+Planned.
+
+Goal:
+
+Move trusted strategy parameters from hard-coded values into safely validated configuration.
+
+Candidates:
+
+- Hybrid evaluation time;
+- Hybrid target SOC;
+- Hybrid morning exit time;
+- Panic PV threshold;
+- Panic forecast margin;
+- Panic SOC thresholds;
+- Panic target SOC values;
+- Away Mode SOC thresholds;
+- Away Mode temperature thresholds;
+- Away Mode PV threshold;
+- Battery Health technical thresholds.
+
+Requirements:
+
+- safe bounds;
+- validated values;
+- clear defaults;
+- separation between hardware limits and household strategy preferences.
+
+---
+
+# Medium Priority
+
+## Away Mode Development
+
+Status:
+
+Away Mode v1 implemented.
+
+Current behavior:
+
+- controls the first-floor heat pump;
+- uses SOC, PV, and temperature conditions;
+- preserves automation ownership through a helper.
 
 Future work:
 
-- Add System Health.
-- Add Battery Health.
-- Add Telemetry Freshness.
-- Add Inverter Health.
-- Add current Operating Mode.
-- Add current Setting 01 state.
-- Add current Setting 16 state.
-- Add Grid Import statistics.
-- Add future Decision Engine recommendations and explanations.
+- validate behavior over longer real-world use;
+- improve notification and explanation quality;
+- consider additional flexible loads;
+- consider occupancy and expected arrival information;
+- decide which future Away logic belongs in Home Assistant and which belongs in EnergyHub services.
 
 ---
 
-## Daily Summary
+## Battery Health Improvements
 
 Status:
 
-v1 Complete.
+v1 implemented.
 
-Currently stores:
+Future work:
 
-- Daily House Consumption.
-- Daily Solar Forecast.
-- Daily Solar Surplus Estimated.
-- Daily Grid Availability.
+- preserve better diagnostic information for anomaly events;
+- add useful Battery Health notifications;
+- investigate additional generic anomaly detection rules if real-system behavior justifies them;
+- add safely configurable technical thresholds if required;
+- evaluate additional JK BMS data when integration architecture is ready.
 
-Current history:
+Possible future inputs:
 
-- Persistent daily history in EnergyHub.
-- 7-day dashboard visualization.
+- individual cell voltages;
+- minimum and maximum cell voltage;
+- cell delta;
+- battery temperatures;
+- BMS alarms;
+- protection states;
+- balancing status.
 
-Future:
+---
 
-- Last 30 days visualization.
-- Daily Grid Import.
-- Advanced historical analysis.
+## Telemetry Freshness Improvements
 
-Future Energy Statistics chart:
+Status:
+
+v1 implemented.
+
+Future work:
+
+- validate House Load unchanged detection against long-term behavior;
+- investigate false warnings if they occur;
+- consider additional telemetry verification methods;
+- consider command verification using supported inverter commands where useful.
+
+---
+
+## Inverter Health Improvements
+
+Status:
+
+v1 implemented.
+
+Future work:
+
+- investigate persistent `eeprom_fault`;
+- determine whether it represents an active fault, historical/sticky state, firmware behavior, or protocol interpretation issue;
+- classify inverter warnings and faults by severity;
+- add notifications for significant warnings and faults;
+- determine how known persistent warnings should affect System Health.
+
+---
+
+## System Health Improvements
+
+Status:
+
+v1 implemented.
+
+Future work:
+
+- improve severity classification;
+- add notification policies;
+- improve Developer Dashboard presentation;
+- determine how persistent known warnings should affect long-term System Health;
+- consider using System Health as a safety prerequisite for selected automatic decisions.
+
+---
+
+## Flexible Load Strategy
+
+Status:
+
+Early development.
+
+Current implementation:
 
 ```text
-House Consumption
-Unused Solar
-Grid Import
-Grid Availability
+Away Mode
+→ First-Floor Heat Pump
 ```
+
+Future goals:
+
+- define generic flexible-load intentions;
+- add boiler strategy;
+- add additional heat-pump strategy;
+- prepare for EV charging;
+- preserve user ownership and manual control;
+- use surplus energy without compromising battery reserve or comfort.
+
+Possible future intentions:
+
+```text
+Heat Now
+Heat Later
+Heat Only from Surplus
+Allow Water Heating
+Prioritize EV Charging
+Preserve Battery Reserve
+```
+
+---
+
+## Daily Summary Improvements
+
+Status:
+
+v1 implemented.
+
+Future work:
+
+- add 30-day visualization if useful;
+- improve historical analysis;
+- evaluate forecast accuracy;
+- compare forecast, consumption, Grid Import, and battery behavior;
+- add new daily facts only when they are useful for decisions or analysis.
+
+---
+
+## Dashboard and Naming Polish
+
+Status:
+
+Deferred until behavior is stable.
+
+Goals:
+
+- expose useful Hybrid decision information and reasons;
+- expose required energy and battery refill requirement if useful;
+- remove duplicate Autopilot helper;
+- align dashboard titles and entity names;
+- reduce duplicate information;
+- improve family-friendly labels;
+- improve health presentation;
+- polish charts after functional testing;
+- separate developer diagnostics from family-facing information.
+
+---
+
+## Notification Improvements
+
+Status:
+
+Initial event flow implemented.
+
+Goals:
+
+- improve message consistency;
+- define which events require notifications;
+- avoid notifications for routine telemetry and expected no-action decisions;
+- include decision reason, target, and next action where useful;
+- add Telegram delivery if useful;
+- consider escalation for repeated recovery failure or critical health conditions.
 
 ---
 
 # Low Priority
 
-## Additional Hardware
+## Additional Hardware Support
 
-Goals:
+Potential future platforms:
 
-- Deye.
-- Victron.
-- Growatt.
+- Deye;
+- Victron;
+- Growatt;
 - LuxPower.
+
+Rule:
+
+Do not build speculative abstractions before real hardware requirements exist.
 
 ---
 
@@ -580,49 +409,64 @@ Goals:
 
 Goals:
 
-- Remote Home Assistant access.
-- Secure VPN access.
-- Automatic backups.
-- OTA updates.
-- External EnergyHub / Home Assistant heartbeat monitoring.
-- External failure notifications when Home Assistant cannot report its own failure.
+- remote Home Assistant access;
+- secure VPN access;
+- automatic backups;
+- OTA update strategy;
+- external EnergyHub/Home Assistant heartbeat monitoring;
+- external failure notifications when Home Assistant cannot report its own failure.
 
 ---
 
 # Research
 
-Ideas and technical questions that require investigation before implementation:
+Technical questions and ideas requiring investigation:
 
-- Persistent PowMr `eeprom_fault`.
-- Programmatic Setting 01 control.
-- `SBU ↔ SUB` command validation.
-- Reliable detection of current load power source.
-- Daily Grid Import estimation.
-- Daytime Panic charging triggers.
-- Battery reserve prediction.
-- Remaining daily solar production estimation.
-- House consumption prediction.
-- External Home Assistant watchdog.
-- AI energy optimization.
-- Machine learning consumption prediction.
-- Dynamic electricity pricing.
-- Automatic anomaly detection.
+- persistent PowMr `eeprom_fault`;
+- reliable identification of current physical load source where required;
+- improved battery reserve prediction;
+- remaining daily solar production estimation;
+- House Consumption prediction;
+- forecast uncertainty;
+- multi-day forecast use;
+- external Home Assistant watchdog;
+- dynamic electricity pricing;
+- automatic anomaly detection;
+- AI-assisted energy optimization;
+- machine-learning consumption prediction.
+
+Research items should move into implementation sections only when they solve a real EnergyHub problem.
 
 ---
 
-## Documentation
+# Documentation Maintenance
 
 Goals:
 
-- Update documentation at the end of every development session.
-- Keep `PROJECT_STATE.md` as the primary entry point for future development.
-- Record significant real-system findings.
-- Clearly distinguish confirmed behavior from hypotheses requiring additional testing.
+- keep `PROJECT_STATE.md` as the primary current-state entry point;
+- keep `PROJECT_HISTORY.md` focused on completed development history;
+- keep this Backlog focused on unfinished work;
+- record significant architectural decisions in `09-Decision-Log.md`;
+- record real-system findings;
+- distinguish confirmed behavior from hypotheses;
+- remove completed items from the Backlog.
 
 ---
 
-# Rule
+# Backlog Rule
 
-Backlog items are not forgotten.
+The Backlog answers:
 
-They are simply waiting for the right stage of development.
+```text
+What should we still do?
+```
+
+It should not answer:
+
+```text
+What have we already built?
+```
+
+Completed work belongs in Project State and Project History.
+
+Ideas remain in the Backlog only while they are still relevant to the current direction of EnergyHub.

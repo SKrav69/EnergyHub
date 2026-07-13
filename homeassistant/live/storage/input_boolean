@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "input_boolean",
+  "data": {
+    "items": [
+      {
+        "id": "energyhub_autopilot",
+        "name": "EnergyHub Autopilot"
+      },
+      {
+        "id": "name_energyhub_autopilot",
+        "name": "Name: EnergyHub Autopilot"
+      },
+      {
+        "id": "energyhub_away_mode",
+        "name": "EnergyHub Away Mode"
+      },
+      {
+        "id": "energyhub_away_heat_pump_active",
+        "name": "EnergyHub Away Heat Pump Active"
+      }
+    ]
+  }
+}

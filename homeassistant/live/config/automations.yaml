@@ -1,0 +1,444 @@
+- id: '1781793005552'
+  alias: Battery Lamp Dynamic Status
+  description: Battery lamp indicates SOC and grid status
+  triggers:
+  - trigger: state
+    entity_id: sensor.powmr_10_2m_battery_soc
+  - trigger: state
+    entity_id: sensor.powmr_10_2m_grid_voltage
+  - trigger: homeassistant
+    event: start
+  actions:
+  - variables:
+      soc: '{{ states(''sensor.powmr_10_2m_battery_soc'') | float(-1) }}'
+      grid_voltage: '{{ states(''sensor.powmr_10_2m_grid_voltage'') | float(0) }}'
+      grid_ok: '{{ grid_voltage > 50 }}'
+      lamp_color: '{% if soc >= 95 %} [0, 80, 255] {% elif soc >= 80 %} [0, 255, 0]
+        {% elif soc >= 50 %} [255, 220, 0] {% elif soc >= 30 %} [255, 80, 0] {% else
+        %} [128, 0, 32] {% endif %}
+
+        '
+  - condition: template
+    value_template: '{{ soc > 0 }}'
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ soc <= 30 }}'
+      sequence:
+      - repeat:
+          while:
+          - condition: template
+            value_template: '{{ states(''sensor.powmr_10_2m_battery_soc'') | float(100)
+              <= 30 }}'
+          sequence:
+          - action: light.turn_on
+            target:
+              entity_id: light.colorful_pir_night_light
+            data:
+              brightness_pct: 80
+              rgb_color: '{{ lamp_color }}'
+          - delay: 00:00:03
+          - action: light.turn_off
+            target:
+              entity_id: light.colorful_pir_night_light
+          - delay: 00:00:01
+    - conditions:
+      - condition: template
+        value_template: '{{ not grid_ok }}'
+      sequence:
+      - repeat:
+          while:
+          - condition: template
+            value_template: '{{ states(''sensor.powmr_10_2m_grid_voltage'') | float(0)
+              < 50 }}'
+          sequence:
+          - action: light.turn_on
+            target:
+              entity_id: light.colorful_pir_night_light
+            data:
+              brightness_pct: 20
+              rgb_color: '{{ lamp_color }}'
+          - delay: 00:00:01
+          - action: light.turn_on
+            target:
+              entity_id: light.colorful_pir_night_light
+            data:
+              brightness_pct: 50
+              rgb_color: '{{ lamp_color }}'
+          - delay: 00:00:01
+          - action: light.turn_on
+            target:
+              entity_id: light.colorful_pir_night_light
+            data:
+              brightness_pct: 80
+              rgb_color: '{{ lamp_color }}'
+          - delay: 00:00:01
+          - action: light.turn_on
+            target:
+              entity_id: light.colorful_pir_night_light
+            data:
+              brightness_pct: 50
+              rgb_color: '{{ lamp_color }}'
+          - delay: 00:00:01
+    default:
+    - action: light.turn_on
+      target:
+        entity_id: light.colorful_pir_night_light
+      data:
+        brightness_pct: 50
+        rgb_color: '{{ lamp_color }}'
+  mode: restart
+- id: '1783102330433'
+  alias: EnergyHub - Daily Solar Surplus Estimated Snapshot
+  description: Store estimated unused solar energy before daily sensors reset
+  triggers:
+  - at: '23:50:00'
+    trigger: time
+  actions:
+  - target:
+      entity_id: input_number.energyhub_daily_solar_surplus_estimated
+    data:
+      value: '{{ surplus }}'
+    action: input_number.set_value
+  variables:
+    forecast: '{{ states(''sensor.solcast_pv_forecast_forecast_today'') | float(0)
+      }}'
+    consumption: '{{ states(''sensor.powmr_10_2m_daily_house_consumption'') | float(0)
+      }}'
+    surplus: '{{ [0, forecast - consumption] | max | round(1) }}'
+  mode: single
+- id: '1783103977336'
+  alias: EnergyHub - Floor 3 Heat Pump Auto Off
+  description: Auto-off timer for 3rd floor heat pump plug
+  triggers:
+  - entity_id: switch.chuangmi_212a01_ea40_switch
+    to: 'on'
+    id: pump_on
+    trigger: state
+  - entity_id: switch.chuangmi_212a01_ea40_switch
+    to: 'off'
+    id: pump_off
+    trigger: state
+  - entity_id: input_number.input_number_floor3_heat_pump_timer_hours
+    id: timer_changed
+    trigger: state
+  - event_type: timer.finished
+    event_data:
+      entity_id: timer.floor_3_heat_pump_auto_off
+    id: timer_finished
+    trigger: event
+  actions:
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.id in [''pump_on'', ''timer_changed''] }}
+
+          '
+      - condition: state
+        entity_id: switch.chuangmi_212a01_ea40_switch
+        state: 'on'
+      - condition: template
+        value_template: '{{ states(''input_number.input_number_floor3_heat_pump_timer_hours'')
+          | int(0) > 0 }}
+
+          '
+      sequence:
+      - target:
+          entity_id: timer.floor_3_heat_pump_auto_off
+        data:
+          duration: '{{ ''%02d:00:00'' % (states(''input_number.input_number_floor3_heat_pump_timer_hours'')
+            | int(0)) }}
+
+            '
+        action: timer.start
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''pump_off'' }}
+
+          '
+      sequence:
+      - target:
+          entity_id: timer.floor_3_heat_pump_auto_off
+        action: timer.cancel
+      - target:
+          entity_id: input_number.input_number_floor3_heat_pump_timer_hours
+        data:
+          value: 0
+        action: input_number.set_value
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''timer_finished'' }}
+
+          '
+      sequence:
+      - target:
+          entity_id: switch.chuangmi_212a01_ea40_switch
+        action: switch.turn_off
+      - target:
+          entity_id: input_number.input_number_floor3_heat_pump_timer_hours
+        data:
+          value: 0
+        action: input_number.set_value
+  mode: restart
+- id: '1783245343717'
+  alias: EnergyHub - Publish Daily Summary Inputs
+  description: Publishes EnergyHub decision inputs before 23:50 and refreshes the
+    final daily snapshot at 23:51.
+  triggers:
+  - trigger: time
+    at: '23:49:00'
+    id: before_hybrid_decision
+  - trigger: time
+    at: '23:51:00'
+    id: final_daily_snapshot
+  conditions: []
+  actions:
+  - action: mqtt.publish
+    data:
+      topic: energyhub/input/ha/daily_house_consumption
+      payload: '{{ states(''sensor.powmr_10_2m_daily_house_consumption'') }}'
+      retain: true
+  - action: mqtt.publish
+    data:
+      topic: energyhub/input/ha/solar_forecast_today
+      payload: '{{ states(''sensor.solcast_pv_forecast_forecast_today'') }}'
+      retain: true
+  - action: mqtt.publish
+    data:
+      topic: energyhub/input/ha/solar_forecast_tomorrow
+      payload: '{{ states(''sensor.solcast_pv_forecast_forecast_tomorrow'') }}'
+      retain: true
+  - action: mqtt.publish
+    data:
+      topic: energyhub/input/ha/daily_solar_surplus_estimated
+      payload: '{{ states(''input_number.energyhub_daily_solar_surplus_estimated'')
+        }}'
+      retain: true
+  mode: single
+- id: '1783697064742'
+  alias: EnergyHub - Publish Autopilot State
+  description: Publishes the EnergyHub Autopilot helper state to MQTT.
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.name_energyhub_autopilot
+  - trigger: homeassistant
+    event: start
+  actions:
+  - delay:
+      seconds: 5
+  - action: mqtt.publish
+    data:
+      topic: energyhub/input/ha/autopilot
+      payload: '{{ states(''input_boolean.name_energyhub_autopilot'') }}'
+      retain: true
+  mode: restart
+- id: '1783705009942'
+  alias: EnergyHub - Hybrid Schedule
+  description: Evaluates Hybrid at 23:50 and restores Solar at 07:00.
+  triggers:
+  - trigger: time
+    at: '23:50:00'
+    id: evaluate_hybrid
+  - trigger: time
+    at: 07:00:00
+    id: restore_solar
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - evaluate_hybrid
+      sequence:
+      - action: mqtt.publish
+        data:
+          topic: energyhub/input/ha/inverter_mode
+          payload: evaluate_hybrid
+          retain: false
+    - conditions:
+      - condition: trigger
+        id:
+        - restore_solar
+      - condition: state
+        entity_id: input_boolean.name_energyhub_autopilot
+        state: 'on'
+      sequence:
+      - action: mqtt.publish
+        data:
+          topic: energyhub/input/ha/inverter_mode
+          payload: solar
+          retain: false
+  mode: single
+- id: '1783705227008'
+  alias: EnergyHub - Restore Mode After Restart
+  description: Restores the correct inverter strategy after an EnergyHub restart.
+  triggers:
+  - trigger: state
+    entity_id: sensor.energyhub_operating_mode
+    to: unknown
+  conditions:
+  - condition: state
+    entity_id: input_boolean.name_energyhub_autopilot
+    state: 'on'
+  actions:
+  - delay:
+      seconds: 10
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{% set now_time = now().strftime(''%H:%M:%S'') %} {{ now_time
+          >= ''23:50:00'' or now_time < ''07:00:00'' }}
+
+          '
+      sequence:
+      - action: mqtt.publish
+        data:
+          topic: energyhub/input/ha/inverter_mode
+          payload: hybrid
+          retain: false
+    default:
+    - action: mqtt.publish
+      data:
+        topic: energyhub/input/ha/inverter_mode
+        payload: solar
+        retain: false
+  mode: restart
+- id: '1783953087633'
+  alias: EnergyHub - Mode Notifications
+  description: Shows notifications when EnergyHub automatically activates Hybrid or
+    Panic.
+  triggers:
+  - trigger: mqtt
+    topic: energyhub/event/notification
+  conditions: []
+  actions:
+  - variables:
+      event: '{{ trigger.payload_json }}'
+      mode: '{{ event.mode | default(''unknown'') }}'
+      soc: '{{ event.soc | default(''unknown'') }}'
+      target_soc: '{{ event.target_soc | default(''unknown'') }}'
+      reason: '{{ event.reason | default(''No reason provided'') }}'
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ mode == ''hybrid'' }}'
+      sequence:
+      - action: persistent_notification.create
+        data:
+          title: "\U0001F319 EnergyHub: Hybrid activated"
+          notification_id: energyhub_hybrid
+          message: 'Battery SOC: {{ soc }}%
+
+            Tomorrow forecast: {{ event.forecast | round(2) }} kWh
+
+            Required energy: {{ event.required_energy | round(2) }} kWh
+
+            Target SOC: {{ target_soc }}%
+
+            EnergyHub will keep the house on the night grid until 07:00.
+
+            Reason: {{ reason }}'
+    - conditions:
+      - condition: template
+        value_template: '{{ mode == ''panic'' }}'
+      sequence:
+      - action: persistent_notification.create
+        data:
+          title: "\U0001F6A8 EnergyHub: Panic activated"
+          notification_id: energyhub_panic
+          message: 'Battery SOC: {{ soc }}%
+
+            Grid confidence: {{ event.grid_confidence | default(''unknown'') }}
+
+            Solar forecast: {{ event.forecast | round(2) }} kWh
+
+            Target SOC: {{ target_soc }}%
+
+            Reason: {{ reason }}'
+  mode: queued
+  max: 10
+- id: '1783955060074'
+  alias: EnergyHub - Away Mode Heat Pump
+  description: Controls the first-floor heat pump only while Away Mode owns it.
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.energyhub_away_mode
+    - sensor.miaomiaoce_t2_e515_temperature
+    - sensor.powmr_10_2m_battery_soc
+    - sensor.powmr_10_2m_pv1_power
+  - trigger: homeassistant
+    event: start
+  conditions: []
+  actions:
+  - variables:
+      away_enabled: '{{ is_state(''input_boolean.energyhub_away_mode'', ''on'') }}'
+      away_heat_pump_active: "{{ is_state(\n  'input_boolean.energyhub_away_heat_pump_active',\n
+        \ 'on'\n) }}"
+      heat_pump_enabled: '{{ is_state(''switch.lumi_v1_64d7_switch'', ''on'') }}'
+      temperature: "{{ states(\n  'sensor.miaomiaoce_t2_e515_temperature'\n) | float(999)
+        }}"
+      battery_soc: "{{ states(\n  'sensor.powmr_10_2m_battery_soc'\n) | float(-1)
+        }}"
+      pv_power: "{{ states(\n  'sensor.powmr_10_2m_pv1_power'\n) | float(-1) }}"
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ not away_enabled }}'
+      - condition: template
+        value_template: '{{ away_heat_pump_active }}'
+      sequence:
+      - action: switch.turn_off
+        target:
+          entity_id: switch.lumi_v1_64d7_switch
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.energyhub_away_heat_pump_active
+      - action: logbook.log
+        data:
+          name: EnergyHub Away Mode
+          message: Heat pump switched off because Away Mode was disabled.
+    - conditions:
+      - condition: template
+        value_template: '{{ away_enabled }}'
+      - condition: template
+        value_template: '{{ not heat_pump_enabled }}'
+      - condition: template
+        value_template: '{{ temperature < 18 }}'
+      - condition: template
+        value_template: '{{ battery_soc > 95 }}'
+      - condition: template
+        value_template: '{{ pv_power > 200 }}'
+      sequence:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.lumi_v1_64d7_switch
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.energyhub_away_heat_pump_active
+      - action: logbook.log
+        data:
+          name: EnergyHub Away Mode
+          message: Heat pump switched on. Temperature={{ temperature }}°C, SOC={{
+            battery_soc }}%, PV={{ pv_power }} W.
+    - conditions:
+      - condition: template
+        value_template: '{{ away_enabled }}'
+      - condition: template
+        value_template: '{{ away_heat_pump_active }}'
+      - condition: template
+        value_template: '{{ temperature >= 23 or battery_soc <= 81 }}'
+      sequence:
+      - action: switch.turn_off
+        target:
+          entity_id: switch.lumi_v1_64d7_switch
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.energyhub_away_heat_pump_active
+      - action: logbook.log
+        data:
+          name: EnergyHub Away Mode
+          message: Heat pump switched off. Temperature={{ temperature }}°C, SOC={{
+            battery_soc }}%.
+  mode: restart

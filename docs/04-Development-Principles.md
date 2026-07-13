@@ -1,6 +1,6 @@
 # EnergyHub Development Principles
 
-> Build a platform that is easy to understand, easy to maintain and enjoyable to extend.
+> Build EnergyHub so it is understandable, reliable, safe to change, and enjoyable to extend.
 
 ---
 
@@ -10,65 +10,92 @@ Code is not the product.
 
 The product is the experience homeowners receive.
 
-Every technical decision should improve the product rather than simply adding functionality.
+Every technical decision should improve reliability, comfort, understanding, or maintainability rather than simply adding functionality.
 
 ---
 
-# Documentation First
+# Documentation Before Implementation
 
-Every significant feature starts with documentation.
+Significant features should follow this path:
 
-Ideas become design.
-
-Design becomes architecture.
-
-Architecture becomes implementation.
-
-Code is the final step—not the first.
-
----
-
-# Development Workflow
-
-Every feature follows the same process:
-
+```text
 Idea
-
-↓
-
+    ↓
 Discussion
-
-↓
-
+    ↓
 Decision
-
-↓
-
+    ↓
 Documentation
-
-↓
-
+    ↓
 Implementation
-
-↓
-
-Testing
-
-↓
-
+    ↓
+Real-System Testing
+    ↓
+Documentation Update
+    ↓
 Git Commit
+```
 
-Skipping steps usually creates technical debt.
+Documentation is part of development, not work performed after development.
+
+Small fixes do not require unnecessary design documents.
+
+The amount of documentation should match the importance and complexity of the change.
 
 ---
 
-# GitHub Is the Single Source of Truth
+# Git Is the Project Source of Truth
 
-The repository represents the current state of EnergyHub.
+The repository represents the reviewable state of EnergyHub.
 
-Documentation, architecture and production code belong in Git.
+It contains:
 
-Temporary experiments do not.
+- production code;
+- architecture documentation;
+- development documentation;
+- selected current Home Assistant configuration;
+- hardware knowledge;
+- development tools.
+
+Runtime state and temporary experiments do not automatically belong in Git.
+
+---
+
+# Home Assistant and Git Have Different Roles
+
+EnergyHub application code flows from Git to Home Assistant:
+
+```text
+Git Repository
+        ↓
+deploy-to-ha.ps1
+        ↓
+sync-to-ha.ps1
+        ↓
+Home Assistant Add-on
+        ↓
+Manual Restart
+        ↓
+Test
+```
+
+Selected Home Assistant configuration flows in the opposite direction:
+
+```text
+Home Assistant
+        ↓
+sync-from-ha.ps1
+        ↓
+homeassistant/live/
+        ↓
+Review Changes
+        ↓
+Git Commit
+```
+
+These workflows should remain separate and explicit.
+
+The complete Home Assistant `.storage` directory must never be committed.
 
 ---
 
@@ -76,125 +103,412 @@ Temporary experiments do not.
 
 The repository should contain:
 
-* Production-ready code
-* Well-documented examples
-* Stable configurations
-* Documentation
+- production-ready code;
+- selected current configuration;
+- useful development tools;
+- verified hardware knowledge;
+- maintained documentation.
 
-Experimental prototypes should remain outside the main repository until they become useful.
+Temporary experiments should remain outside production paths until they become useful and understood.
 
 ---
 
 # Small, Understandable Commits
 
-Each commit should represent one logical change.
+Each commit should represent one logical change or coherent milestone.
 
-Commit messages should explain intent rather than implementation details.
+Commit messages should explain intent.
 
-Good example:
+Good:
 
+```text
+feat: add mode-aware grid import estimation
 ```
-feat: add inverter mode switching
+
+Good:
+
+```text
+docs: document recovery strategy
 ```
 
-Poor example:
+Poor:
 
-```
+```text
 fixed stuff
 ```
 
----
+Before committing:
 
-# Modular Architecture
-
-Each subsystem should have a clear responsibility.
-
-Examples:
-
-* Inverter
-* Battery
-* Forecast
-* Dashboard
-* Notifications
-* Automation Engine
-
-Modules communicate through well-defined interfaces.
+```text
+Deploy or Sync
+        ↓
+Test
+        ↓
+Inspect Logs
+        ↓
+Review Git Diff
+        ↓
+Commit
+```
 
 ---
 
-# Hardware Independence
+# Clear Responsibility Boundaries
 
-Business logic should never depend directly on a specific hardware vendor.
+Each subsystem should have one clear responsibility.
 
-Instead of:
+Current examples:
 
+- Telemetry Service;
+- Grid History;
+- Grid Confidence;
+- Daily Summary;
+- Health Services;
+- Hybrid Decision Engine;
+- Panic Decision Engine;
+- Inverter Controller;
+- Operating Mode;
+- Grid Import;
+- MQTT Integration.
+
+A subsystem should not silently take ownership of unrelated behavior.
+
+---
+
+# Keep `main.py` as an Orchestrator
+
+`main.py` may initialize, connect, and coordinate services.
+
+It should not become the permanent home of:
+
+- decision formulas;
+- protocol mappings;
+- historical calculations;
+- recovery policy;
+- MQTT Discovery definitions.
+
+Logic that develops its own state, rules, persistence, or tests should normally move into a focused service.
+
+---
+
+# Separate Decisions from Execution
+
+Decision services answer:
+
+```text
+What should EnergyHub do?
 ```
-POP02
+
+The Inverter Controller answers:
+
+```text
+How should the physical inverter do it?
 ```
 
-The application should use:
+Example:
 
-```
-set_mode("panic")
+```text
+Hybrid Decision
+        ↓
+Request Hybrid
+        ↓
+Inverter Controller
+        ↓
+PowMr Commands
+        ↓
+Verification
 ```
 
-Vendor-specific commands belong inside hardware adapters.
+Decision services should not directly send vendor-specific commands.
+
+---
+
+# Hardware Independence Is a Direction
+
+EnergyHub 1.0 currently supports one real installation:
+
+- PowMr 10.2M;
+- PI30MAX;
+- JK BMS;
+- Home Assistant.
+
+We should avoid unnecessary vendor coupling in high-level logic.
+
+However, EnergyHub should not pretend a complete multi-vendor abstraction layer already exists.
+
+Current priority:
+
+```text
+Reliable Real Installation
+        ↓
+Clear Responsibility Boundaries
+        ↓
+Reusable Services
+        ↓
+Real Multi-Vendor Requirements
+        ↓
+Validated Abstractions
+```
+
+Do not introduce abstraction merely because it may be useful someday.
 
 ---
 
 # Explainability
 
-Complex code should be easy to understand.
+Important behavior should be understandable from:
 
-Simple code is usually better than clever code.
+- state;
+- reason;
+- logs;
+- documentation.
 
-Future maintainability is more important than short-term optimization.
+EnergyHub should answer:
+
+```text
+What happened?
+Why did it happen?
+What did EnergyHub do?
+Did it succeed?
+Is user action required?
+```
+
+Simple, explicit code is preferred over clever code.
 
 ---
 
 # Decision Logging
 
-Every important architectural decision should be documented.
+Important architectural decisions should be documented in the Decision Log.
 
-Future developers—including ourselves—should understand why decisions were made.
+The purpose is not to record every coding choice.
 
----
-
-# Technical Debt
-
-Technical debt should never accumulate silently.
-
-Known compromises belong in the backlog.
-
-Temporary solutions should be clearly marked.
+The purpose is to preserve decisions that future development may otherwise accidentally reverse.
 
 ---
 
-# Testing Philosophy
+# Technical Debt Must Be Visible
 
-Read operations are verified before write operations.
+Technical debt should not accumulate silently.
 
-Automation is verified before being enabled.
+Known compromises belong in:
 
-Potentially dangerous operations should always be reversible.
+- Backlog;
+- Project State;
+- code comments when technically appropriate.
+
+Completed work should not remain indefinitely in the Backlog as if it were still planned.
+
+Temporary solutions should have a clear reason and future direction.
+
+---
+
+# Test on the Real System
+
+EnergyHub controls physical hardware.
+
+Simulation and isolated testing are useful, but they are not sufficient.
+
+The normal development loop is:
+
+```text
+Implement
+    ↓
+Deploy
+    ↓
+Restart Add-on
+    ↓
+Inspect Startup
+    ↓
+Inspect Logs
+    ↓
+Verify Home Assistant Entities
+    ↓
+Verify Physical Behavior
+```
+
+Testing should confirm both software state and real inverter behavior.
+
+---
+
+# Read Before Write
+
+When working with physical hardware:
+
+```text
+Understand Read Commands
+        ↓
+Verify Current State
+        ↓
+Test Write Command
+        ↓
+Verify ACK
+        ↓
+Read Back State
+        ↓
+Confirm Physical Behavior
+```
+
+Write operations should be introduced cautiously.
+
+---
+
+# Verify Physical State
+
+A successful command does not always prove the inverter reached the intended state.
+
+Where read-back is available:
+
+```text
+Command
+    ↓
+ACK
+    ↓
+Read Back
+    ↓
+Verify
+```
+
+EnergyHub should not claim a confirmed Operating Mode before appropriate verification.
+
+---
+
+# Safe and Bounded Recovery
+
+Automatic recovery is allowed only when the action is:
+
+- understood;
+- safe;
+- bounded;
+- verifiable;
+- appropriate for the detected failure.
+
+Infinite retry loops are prohibited.
+
+EnergyHub must never automatically restart the inverter.
+
+When safe automatic recovery is not possible:
+
+```text
+Detect
+    ↓
+Report
+    ↓
+Require Human Attention
+```
+
+Detailed recovery policy belongs in `13-Recovery-Strategy.md`.
+
+---
+
+# Preserve Manual Control
+
+Automation should reduce homeowner decisions without removing meaningful control.
+
+Users should be able to:
+
+- disable Autopilot;
+- request supported operating strategies;
+- enable or disable Away Mode;
+- inspect important reasons and state;
+- recover manually when automatic recovery is inappropriate.
+
+---
+
+# Automation Must Respect Ownership
+
+An automation should automatically stop a household load only when that automation previously started it.
+
+Current example:
+
+```text
+EnergyHub starts first-floor heat pump
+        ↓
+Ownership helper becomes ON
+        ↓
+EnergyHub may later stop it
+```
+
+If the user started the load manually, EnergyHub should not assume ownership.
 
 ---
 
 # Continuous Refactoring
 
-Improvement never stops.
+Refactoring is encouraged when it improves:
 
-Whenever code becomes simpler, more readable or more maintainable without changing behavior, refactoring is encouraged.
+- readability;
+- responsibility boundaries;
+- testability;
+- reliability;
+- maintainability.
+
+Refactoring should preserve behavior unless behavior change is intentional and documented.
+
+Do not refactor large working subsystems merely to achieve theoretical architectural purity.
 
 ---
 
 # Long-Term Thinking
 
-Every design decision should answer one question:
+Long-term design matters.
 
-Will this still make sense in five years?
+But every design decision should balance:
 
-If not, reconsider the design.
+```text
+Current Real Need
++
+Reliability
++
+Maintainability
++
+Future Direction
+```
+
+The question is not only:
+
+```text
+Will this make sense in five years?
+```
+
+It is also:
+
+```text
+Does this solve the real problem clearly today?
+```
+
+---
+
+# Feature Design Checklist
+
+Before implementation:
+
+- What real problem does this solve?
+- Who benefits?
+- Does it reduce homeowner decisions or improve understanding?
+- Which subsystem owns it?
+- Is similar logic already implemented elsewhere?
+- What data does it require?
+- What happens if the data is missing or stale?
+- What happens if the feature fails?
+- Is there a safe fallback?
+- Is automatic recovery appropriate?
+- Is recovery bounded and verifiable?
+- Can the decision be explained?
+- Does Home Assistant or EnergyHub own the behavior?
+- Does documentation need updating?
+
+Before completion:
+
+- Has the code been deployed?
+- Has startup behavior been checked?
+- Have logs been inspected?
+- Have Home Assistant entities been verified?
+- Has physical behavior been verified where applicable?
+- Have failure cases been considered?
+- Has the Git diff been reviewed?
+- Has documentation been updated?
+- Is completed work removed from the Backlog where appropriate?
 
 ---
 
@@ -202,11 +516,44 @@ If not, reconsider the design.
 
 A feature is complete only when:
 
-* It works reliably.
-* It is documented.
-* It follows the architecture.
-* It is understandable.
-* It has been committed to Git.
-* It improves the homeowner's experience.
+- it solves the intended problem;
+- it works reliably on the real system;
+- responsibility ownership is clear;
+- important decisions are explainable;
+- failure behavior is understood;
+- recovery is safe where applicable;
+- Home Assistant integration works where applicable;
+- documentation reflects the implementation;
+- obsolete Backlog items are updated;
+- the Git diff has been reviewed;
+- the change has been committed.
 
 Only then is the feature considered finished.
+
+---
+
+# Development Principle
+
+EnergyHub development should follow this direction:
+
+```text
+Understand the Real Problem
+        ↓
+Choose the Correct Owner
+        ↓
+Document the Decision
+        ↓
+Implement the Smallest Clear Solution
+        ↓
+Test on the Real System
+        ↓
+Verify Failure Behavior
+        ↓
+Update Documentation
+        ↓
+Review and Commit
+```
+
+The goal is not to create the most complex energy-management platform.
+
+The goal is to create a platform that can safely become more capable without becoming difficult to understand.

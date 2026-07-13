@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "timer",
+  "data": {
+    "items": [
+      {
+        "id": "floor_3_heat_pump_auto_off",
+        "name": "Floor 3 Heat Pump Auto-Off",
+        "restore": false,
+        "duration": "0:00:00"
+      }
+    ]
+  }
+}

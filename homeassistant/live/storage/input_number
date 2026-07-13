@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "input_number",
+  "data": {
+    "items": [
+      {
+        "id": "input_number_floor3_heat_pump_timer_hours",
+        "min": 0.0,
+        "max": 9.0,
+        "name": "input_number.floor3_heat_pump_timer_hours",
+        "unit_of_measurement": "h",
+        "mode": "slider",
+        "step": 1.0
+      },
+      {
+        "id": "energyhub_daily_energy_balance",
+        "min": -100.0,
+        "max": 100.0,
+        "name": "Daily Solar Surplus Estimated",
+        "step": 0.1,
+        "unit_of_measurement": "kWh",
+        "mode": "slider"
+      }
+    ]
+  }
+}

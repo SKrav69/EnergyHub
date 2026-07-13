@@ -1,370 +1,367 @@
-# EnergyHub Changelog
+# EnergyHub Project History
 
-This document summarizes major features, architectural milestones, and capabilities added to EnergyHub.
+This document records the major development eras and architectural milestones of EnergyHub.
 
-It intentionally focuses on functionality rather than bug fixes.
-
----
-
-# 2026-06-16
-
-## Initial EnergyHub foundation
-
-### Added
-
-- PowMr inverter communication
-- PI30MAX protocol support
-- Raspberry Pi integration
-- Home Assistant integration
-- MQTT communication
-- Basic telemetry publishing
+Detailed implementation changes belong in `CHANGELOG.md`.
 
 ---
 
-# 2026-06-17
+# June 2026 — Foundation
 
-## MQTT Device Integration
+EnergyHub began as a local integration between a PowMr inverter, Raspberry Pi, Home Assistant, and MQTT.
 
-### Added
+Major milestones:
 
-- MQTT Discovery
-- Automatic Home Assistant entity creation
-- Standard MQTT device model
-- Availability topics
+- PowMr PI30MAX communication;
+- real-time inverter telemetry;
+- MQTT publishing;
+- MQTT Discovery;
+- automatic Home Assistant entities;
+- GitHub repository;
+- structured project documentation.
 
-### Architecture
+Architectural result:
 
-EnergyHub becomes MQTT-first.
-
----
-
-# 2026-06-18
-
-## Telemetry Engine
-
-### Added
-
-Real-time publishing of:
-
-- Battery SOC
-- Battery Voltage
-- Battery Current
-- PV Voltage
-- PV Current
-- PV Power
-- Output Power
-- Grid Voltage
-- Grid Frequency
-- Load Percentage
-- Inverter Status
+> EnergyHub became a local-first, MQTT-first energy platform rather than a collection of isolated scripts.
 
 ---
 
-# 2026-06-20
+# Late June 2026 — Grid Intelligence and Health
 
-## Repository & Documentation
+EnergyHub expanded from telemetry into system awareness.
 
-### Added
+Major milestones:
 
-- GitHub repository
-- Documentation structure
-- Development philosophy
-- Design principles
-- Architecture documentation
-- Decision log
+- Grid Monitor;
+- Grid History;
+- 24-hour and 48-hour grid availability;
+- Grid Confidence;
+- Communication Watchdog;
+- Communication Health state machine;
+- Developer Dashboard;
+- Family Dashboard;
+- House Model documentation.
 
-### Architecture
+Architectural result:
 
-Documentation becomes part of development.
-
----
-
-# 2026-06-22
-
-## Grid Intelligence
-
-### Added
-
-Grid monitoring
-
-Grid History
-
-Grid Confidence
-
-24-hour availability calculation
-
-48-hour availability calculation
-
-Grid outage history
-
-### Architecture
-
-Grid events become historical rather than instantaneous.
+> EnergyHub began preserving historical context and treating system health as a first-class subsystem.
 
 ---
 
-# 2026-06-24
+# Late June 2026 — Home Automation and Historical Energy
 
-## Developer Dashboard
+EnergyHub began connecting energy telemetry with household behavior.
 
-### Added
+Major milestones:
 
-Developer Dashboard
+- Daily Energy Statistics;
+- 7-day historical charts;
+- solar forecast integration;
+- Grid Availability visualization;
+- Floor 3 Heat Pump Auto-Off;
+- timer helpers;
+- Daily Energy Balance helper.
 
-Real-time inverter diagnostics
+Architectural result:
 
-Health visualization
-
-Grid visualization
-
----
-
-# 2026-06-25
-
-## Family Dashboard
-
-### Added
-
-Family Dashboard
-
-House status
-
-Floor cards
-
-Temperature monitoring
-
-Heat pump controls
-
-Simple homeowner interface
-
-### Philosophy
-
-Separate homeowner UI from engineering UI.
+> Dashboards and automations began consuming reusable energy knowledge rather than repeatedly calculating raw telemetry.
 
 ---
 
-# 2026-06-26
+# Early July 2026 — Architecture v2
 
-## Communication Reliability
+The project was reorganized around modular services and explainable decisions.
 
-### Added
+Major milestones:
 
-Communication Watchdog
+- Daily Summary Engine;
+- persistent daily history;
+- Battery Health Monitor;
+- Telemetry Freshness Monitor;
+- Inverter Health Monitor;
+- System Health aggregation;
+- QPIWS monitoring;
+- Recovery Strategy principles;
+- Decision Engine design;
+- Home Assistant configuration documentation.
 
-Health Monitor
+Architectural result:
 
-Communication state machine
-
-Health MQTT entities
-
-Communication diagnostics
-
-### States
-
-Starting
-
-Online
-
-Recovering
-
-Offline
-
-### Architecture
-
-System health becomes a first-class subsystem.
-
----
-
-# 2026-06-27
-
-## Home Model
-
-### Added
-
-House Model
-
-Floor documentation
-
-Room documentation
-
-Device inventory
-
-Automation planning
-
-### Architecture
-
-Documentation now represents the physical house.
+```text
+Telemetry
+    ↓
+Reliable Facts
+    ↓
+Health Awareness
+    ↓
+Historical Knowledge
+    ↓
+Explainable Decisions
+```
 
 ---
 
-# 2026-06-28
+# July 2026 — Real Inverter Control
 
-## Dashboard Evolution
+EnergyHub moved from monitoring and recommendations to verified control of the real inverter.
 
-### Added
+Major milestones:
 
-Daily Energy Statistics
+- Setting 16 control confirmed:
+  - `PCP01 → SNU`;
+  - `PCP02 → OSO`;
+  - `PCP03 → CSO`.
+- Setting 01 control confirmed:
+  - `POP01 → SUB`;
+  - `POP02 → SBU`.
+- command acknowledgement;
+- QPIRI verification;
+- bounded retries;
+- real inverter display verification;
+- safe Solar restoration.
 
-7-day historical charts
+Architectural result:
 
-Forecast integration
-
-House Consumption chart
-
-Grid Availability visualization
-
-Dual-axis charts
-
-### Removed
-
-PV1 generation chart
-(replaced because only one MPPT is available)
-
----
-
-# 2026-06-29
-
-## Heat Pump Automation
-
-### Added
-
-Floor 3 Heat Pump Auto-Off
-
-Remaining countdown timer
-
-Timer helper
-
-Daily Energy Balance helper
-
-Daily Energy Balance automation
-
-### Architecture
-
-Manual user actions can now have automatic expiration.
+> EnergyHub gained the ability to execute operating strategies rather than only recommend them.
 
 ---
 
-# 2026-07-03
+# July 2026 — Autonomous Operating Modes
 
-## Project Architecture v2
+EnergyHub implemented its first complete operating strategies.
 
-### Added
+## Solar
 
-Home Assistant Configuration documentation
+Default strategy:
 
-Dashboard source files
+```text
+SBU + OSO
+```
 
-Automation source files
+## Hybrid
 
-Roadmap redesign
+Night strategy based on tomorrow's forecast, today's consumption, current SOC, and required battery refill energy.
 
-Daily Summary Engine design
+Sequence:
 
-Decision Engine design
+```text
+Hybrid Decision
+    ↓
+Hybrid Charging
+SUB + SNU
+    ↓
+Battery reaches 80%
+    ↓
+Hybrid Grid Hold
+SUB + OSO
+    ↓
+07:00
+    ↓
+Solar
+```
 
-### Architecture
+## Panic
 
-EnergyHub architecture now consists of:
+Protective daytime charging based on:
 
-Telemetry Engine
+- Grid Confidence;
+- current SOC;
+- low PV production;
+- insufficient solar forecast.
 
-Health Monitor
+Targets:
 
-MQTT Publisher
+- 80% for unstable-grid conditions;
+- 95% for higher-risk conditions.
 
-Dashboards
+## Away Mode v1
 
-Daily Summary Engine
+Manual Away Mode with autonomous first-floor heat-pump control based on:
 
-Decision Engine
+- temperature;
+- Battery SOC;
+- available PV power.
 
-### Philosophy
+An ownership helper ensures EnergyHub only switches off loads that it previously started.
 
-Historical knowledge should be generated once.
+Architectural result:
 
-Dashboards consume historical knowledge rather than calculating it.
-
-Automation decisions should be explainable.
-
-Documentation is treated as the source of truth.
-
----
-
-# Upcoming
-
-## Daily Summary Engine
-
-Daily historical statistics
-
-Daily Energy Balance
-
-Daily Grid Availability
-
-Daily Grid Import
-
-Historical MQTT sensors
-
----
-
-## Decision Engine
-
-Summer Mode
-
-Winter Mode
-
-Away Mode
-
-Panic Mode
-
-Battery optimization
-
-Heat pump optimization
-
-EV charging
-
-Smart plug scheduling
-
-Explainable decisions
+> EnergyHub crossed the boundary from monitoring into explainable autonomous home energy control.
 
 ---
 
-## Telegram Integration
+# July 2026 — Grid Import Estimation
 
-Notifications
+The PowMr inverter does not provide a reliable accumulated Grid Import counter.
 
-Warnings
+EnergyHub introduced a mode-aware Grid Import Estimator.
 
-Status
+Major milestones:
 
-Remote mode switching
+- estimated current Grid Import power;
+- estimated Daily Grid Import energy;
+- Solar-mode power-balance estimation;
+- Hybrid/Panic charging estimation;
+- Hybrid Grid Hold estimation;
+- persistent daily state;
+- midnight reset;
+- chart and dashboard integration.
+
+Architectural result:
+
+> EnergyHub learned to derive missing operational knowledge from telemetry and known control state.
 
 ---
 
-## Platform Expansion
+# July 2026 — Home Assistant as Versioned Project State
 
-Additional inverter vendors
+The Home Assistant side of EnergyHub was integrated into the repository workflow.
 
-Additional BMS vendors
+Major milestones:
 
-EV chargers
+- `homeassistant/live/` for current synchronized configuration;
+- `homeassistant/legacy/` for historical manual exports;
+- `tools/dev/sync-from-ha.ps1`;
+- selected Home Assistant YAML synchronization;
+- selected `.storage` synchronization;
+- Lovelace dashboard synchronization;
+- helper and timer synchronization.
 
-Heat pumps
+Development workflow became bidirectional:
 
-Matter
+```text
+EnergyHub code
+Git → Home Assistant
 
-Vendor-independent architecture
+Home Assistant configuration
+Home Assistant → Git
+```
 
-# 2026-07-09
+Architectural result:
 
-## Inverter Setting 01 control confirmed
+> The repository now represents both the EnergyHub runtime and the reviewed Home Assistant configuration that surrounds it.
 
-### Added
-- Verified programmatic control of Output Source Priority.
-- Confirmed POP01 → SUB.
-- Confirmed POP02 → SBU.
-- Confirmed safe restore back to SBU.
+---
 
-### Architecture
-EnergyHub can now control both key inverter strategy settings:
-- Setting 01: output source priority
-- Setting 16: charger source priority
+# Current Era — EnergyHub 1.0 Stabilization
+
+The current goal is to stabilize and polish the first autonomous EnergyHub release.
+
+Current priorities:
+
+- validate autonomous behavior over real household operation;
+- improve restart strategy reconstruction;
+- complete bounded recovery behavior;
+- expose remaining Hybrid Decision telemetry;
+- polish dashboards and naming;
+- remove duplicate helpers;
+- investigate persistent inverter `eeprom_fault`;
+- align all project documentation.
+
+EnergyHub 1.0 success means:
+
+> The house can operate safely and economically with minimal homeowner intervention while every important automated decision remains understandable.
+
+---
+
+# Next Era — EnergyHub 1.1
+
+EnergyHub 1.1 will make household strategy parameters configurable without editing code.
+
+Planned examples:
+
+- Hybrid target SOC;
+- Hybrid schedule;
+- Panic thresholds and targets;
+- Away Mode SOC thresholds;
+- Away Mode temperature thresholds;
+- Away Mode PV threshold.
+
+Architectural goal:
+
+> Separate hardware technical limits from configurable household strategy.
+
+---
+
+# Future — EnergyHub 2.x
+
+EnergyHub will evolve into a multi-vendor energy optimization platform.
+
+Planned direction:
+
+- Deye, GoodWe, Victron, and other inverter support;
+- additional BMS vendors;
+- dynamic electricity tariffs;
+- import optimization;
+- export optimization;
+- Net Billing;
+- battery degradation modeling.
+
+Core question:
+
+> Is it better to consume, store, import, or export energy now?
+
+---
+
+# Long-Term Vision — EnergyHub 3.x
+
+EnergyHub will evolve into a full Home Energy Management System.
+
+Planned ecosystem:
+
+- solar;
+- battery storage;
+- weather;
+- dynamic electricity markets;
+- EV charging;
+- heat pumps;
+- water heating;
+- flexible household loads;
+- grid reliability;
+- energy trading.
+
+Long-term architecture:
+
+```text
+Weather
++
+Solar Forecast
++
+House Consumption
++
+Battery State
++
+Grid Reliability
++
+Electricity Prices
++
+EV Requirements
++
+Heating Requirements
+        ↓
+EnergyHub
+        ↓
+Explainable Whole-Home Energy Strategy
+```
+
+---
+
+# Project Evolution
+
+```text
+Monitoring
+    ↓
+Reliable Facts
+    ↓
+Health Awareness
+    ↓
+Historical Knowledge
+    ↓
+Explainable Decisions
+    ↓
+Validated Automation
+    ↓
+Autonomous Home Operation
+    ↓
+Whole-Home Energy Optimization
+```

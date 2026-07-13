@@ -17,12 +17,15 @@ from app.mqtt.publisher import (
     publish_discovery,
     publish_grid_discovery,
     publish_grid_history,
+    publish_grid_import,
+    publish_grid_import_discovery,
     publish_health,
     publish_health_discovery,
     publish_inverter_health,
     publish_inverter_health_discovery,
     publish_inverter_settings,
     publish_inverter_settings_discovery,
+    publish_notification_event,
     publish_operating_mode,
     publish_operating_mode_discovery,
     publish_panic_decision,
@@ -37,9 +40,11 @@ from app.services.battery_health import BatteryHealthMonitor
 from app.services.daily_summary import DailySummaryService
 from app.services.event_bus import EventBus
 from app.services.grid_history import GridHistoryService
+from app.services.grid_import import GridImportService
 from app.services.grid_monitor import GridMonitor
 from app.services.grid_stability import GridStabilityEngine
 from app.services.health_monitor import HealthMonitor
+from app.services.hybrid_decision import HybridDecisionEngine
 from app.services.inverter_controller import InverterController
 from app.services.inverter_health import InverterHealthMonitor
 from app.services.panic_decision import PanicDecisionEngine
@@ -112,8 +117,10 @@ def main():
 
     grid = GridMonitor()
     history = GridHistoryService()
+    grid_import = GridImportService()
     stability = GridStabilityEngine(history)
     daily_summary = DailySummaryService(history)
+    hybrid_decision = HybridDecisionEngine()
     panic_decision = PanicDecisionEngine()
 
     mode_requests = queue.Queue(maxsize=1)
@@ -124,6 +131,7 @@ def main():
     last_settings_read = 0
     last_panic_evaluation = 0
 
+    hybrid_evaluation_requested = False
     panic_evaluation_requested = False
 
     bus = EventBus()
@@ -174,6 +182,7 @@ def main():
             )
 
     def process_mode_request():
+        nonlocal hybrid_evaluation_requested
         nonlocal panic_target_soc
         nonlocal panic_evaluation_requested
 
@@ -200,6 +209,12 @@ def main():
 
             inverter_controller.restore_solar()
             publish_controller_state()
+            return
+
+        if requested_mode == "evaluate_hybrid":
+            hybrid_evaluation_requested = True
+
+            log("Hybrid evaluation requested")
             return
 
         if not autopilot.is_enabled():
@@ -271,6 +286,56 @@ def main():
                 "after Solar confirmation"
             )
 
+    def evaluate_hybrid(state):
+        forecast_tomorrow = daily_summary.inputs.get(
+            "solar_forecast_tomorrow"
+        )
+
+        consumption_today = daily_summary.inputs.get(
+            "daily_house_consumption"
+        )
+
+        decision = hybrid_decision.evaluate(
+            autopilot_enabled=autopilot.is_enabled(),
+            operating_mode=inverter_controller.mode,
+            battery_soc=state.battery_soc,
+            forecast_tomorrow=forecast_tomorrow,
+            consumption_today=consumption_today,
+        )
+
+        log(
+            "Hybrid evaluation: "
+            f"status={decision['status']}, "
+            f"reason={decision['reason']}"
+        )
+
+        requested_mode = decision.get("request")
+
+        if requested_mode is None:
+            return
+
+        log(
+            "Hybrid decision triggered: "
+            f"request={requested_mode}, "
+            f"required_energy="
+            f"{decision['required_energy']:.2f} kWh"
+        )
+
+        publish_notification_event(
+            client,
+            {
+                "type": "automatic_mode_activation",
+                "mode": "hybrid",
+                "soc": state.battery_soc,
+                "forecast": forecast_tomorrow,
+                "required_energy": decision["required_energy"],
+                "target_soc": HYBRID_TARGET_SOC,
+                "reason": decision["reason"],
+            },
+        )
+
+        queue_mode_request(requested_mode)
+
     def evaluate_panic(state):
         grid_confidence = stability.level()
 
@@ -312,6 +377,19 @@ def main():
             "Automatic Panic triggered: "
             f"request={requested_mode}, "
             f"target={decision['target_soc']}%"
+        )
+
+        publish_notification_event(
+            client,
+            {
+                "type": "automatic_mode_activation",
+                "mode": "panic",
+                "soc": state.battery_soc,
+                "forecast": forecast_today,
+                "grid_confidence": grid_confidence,
+                "target_soc": decision["target_soc"],
+                "reason": decision["reason"],
+            },
         )
 
         queue_mode_request(requested_mode)
@@ -409,6 +487,7 @@ def main():
     )
 
     publish_grid_discovery(client)
+    publish_grid_import_discovery(client)
     publish_health_discovery(client)
     publish_battery_health_discovery(client)
     publish_telemetry_freshness_discovery(client)
@@ -423,6 +502,11 @@ def main():
     publish_daily_summary(
         client,
         daily_summary,
+    )
+
+    publish_grid_import(
+        client,
+        grid_import,
     )
 
     publish_autopilot(
@@ -567,6 +651,28 @@ def main():
                 )
 
                 soc = state.battery_soc
+
+                grid_import.update(
+                    operating_mode=inverter_controller.mode,
+                    output_power_w=state.load_power,
+                    pv_power_w=state.pv_power,
+                    battery_voltage_v=state.battery_voltage,
+                    battery_charging_current_a=state.raw.get(
+                        "battery_charging_current"
+                    ),
+                    battery_discharge_current_a=state.raw.get(
+                        "battery_discharge_current"
+                    ),
+                )
+
+                publish_grid_import(
+                    client,
+                    grid_import,
+                )
+
+                if hybrid_evaluation_requested:
+                    evaluate_hybrid(state)
+                    hybrid_evaluation_requested = False
 
                 if (
                     autopilot.is_enabled()

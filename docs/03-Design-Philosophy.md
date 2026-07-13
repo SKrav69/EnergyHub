@@ -104,11 +104,10 @@ Complex logic belongs inside the platform.
 
 The homeowner should interact with simple concepts:
 
-* Summer Mode
-* Winter Mode
-* Away Mode
-* Vacation Mode
-* Panic Mode
+* Solar
+* Hybrid
+* Panic
+* Away
 
 Not inverter commands, MQTT topics or automation rules.
 
@@ -122,9 +121,9 @@ Cloud services improve the system but should never become mandatory.
 
 ---
 
-# Self-Healing
+# Safe and Bounded Recovery
 
-The platform should recover automatically whenever possible.
+The platform should recover automatically when recovery is understood, safe, bounded, and verifiable.
 
 Examples include:
 
@@ -133,19 +132,21 @@ Examples include:
 * Device reconnect
 * Integration recovery
 
-Users should rarely need to intervene.
+Automatic recovery must never become an uncontrolled retry loop.
+
+When safe recovery is not possible, EnergyHub should detect the failure, explain it, and require human intervention.
 
 ---
 
-# Vendor Independence
+# Vendor Independence as a Direction
 
-EnergyHub is hardware-agnostic.
+EnergyHub should avoid unnecessary vendor coupling.
 
-Devices may change.
+The current priority is a reliable real installation with clear responsibility boundaries.
 
-The platform remains.
+As real multi-vendor requirements appear, reusable services and validated abstractions should allow hardware to change without redesigning the entire platform.
 
-Hardware should be replaceable without redesigning the system.
+EnergyHub should not introduce speculative abstractions merely to claim hardware independence.
 
 ---
 

@@ -171,6 +171,42 @@ def publish_grid_discovery(client):
     log("Grid MQTT discovery published")
 
 
+def publish_grid_import(client, grid_import):
+    for key, value in grid_import.mqtt_values().items():
+        client.publish(
+            f"{BASE_TOPIC}/{key}/state",
+            str(value),
+            retain=True,
+        )
+
+
+def publish_grid_import_discovery(client):
+    device = _energyhub_device()
+
+    sensors = {
+        "grid_import_power_estimated": (
+            "Grid Import Power Estimated",
+            "W",
+            "power",
+            "measurement",
+        ),
+        "daily_grid_import_estimated": (
+            "Daily Grid Import Estimated",
+            "kWh",
+            "energy",
+            "total_increasing",
+        ),
+    }
+
+    _publish_sensor_discovery(
+        client,
+        device,
+        sensors,
+    )
+
+    log("Grid Import MQTT discovery published")
+
+
 def publish_health(client, health):
     for key, value in health.mqtt_values().items():
         client.publish(
@@ -603,3 +639,17 @@ def publish_panic_decision_discovery(client):
     )
 
     log("Panic Decision MQTT discovery published")
+
+
+def publish_notification_event(client, event):
+    client.publish(
+        "energyhub/event/notification",
+        json.dumps(event),
+        retain=False,
+    )
+
+    log(
+        "Notification event published: "
+        f"type={event.get('type')}, "
+        f"mode={event.get('mode')}"
+    )

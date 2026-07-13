@@ -6,106 +6,141 @@
 
 # Overview
 
-EnergyHub is designed as a layered architecture.
+EnergyHub is a local-first home energy management system built as a set of small, cooperating services.
 
-Each layer has a clear responsibility.
+The architecture separates:
 
-Higher layers never depend on specific hardware.
+- physical devices and protocols;
+- telemetry and state;
+- historical knowledge;
+- health and reliability;
+- decisions;
+- control execution;
+- Home Assistant integration;
+- homeowner interaction.
 
-Lower layers never contain business logic.
-
-This separation allows EnergyHub to remain modular, maintainable and vendor-independent.
+The current implementation is optimized for one real PowMr installation, while the long-term architecture is intended to support additional hardware vendors and complete home energy management.
 
 ---
 
-# Architecture Layers
+# Current System Architecture
 
+```text
+                         Homeowner
+                             │
+                             ▼
+                  Home Assistant Dashboards
+                             │
+                  Automations / Helpers / UI
+                             │
+                             ▼
+                            MQTT
+                             │
+                             ▼
+                       EnergyHub Core
+                             │
+        ┌────────────────────┼────────────────────┐
+        ▼                    ▼                    ▼
+   Telemetry             Intelligence          Control
+        │                    │                    │
+        ▼                    ▼                    ▼
+ InverterState       Decision Engines     Inverter Controller
+        │                    │                    │
+        ▼                    ▼                    ▼
+    Event Bus          Operating Mode       PowMr Adapter
+        │                    │                    │
+        ▼                    ▼                    ▼
+ Health / History     Notifications       Physical Inverter
 ```
-                 Homeowner
 
-                      │
+EnergyHub currently runs as a Home Assistant add-on.
 
-         Dashboards & Mobile App
+Home Assistant and EnergyHub have separate responsibilities.
 
-                      │
+EnergyHub owns:
 
-────────────────────────────────────────
+- inverter communication;
+- telemetry processing;
+- historical grid knowledge;
+- health evaluation;
+- decision logic;
+- operating-mode state;
+- inverter control;
+- Grid Import estimation.
 
-                EnergyHub Core
+Home Assistant owns:
 
-      Decision Engine
-      Automation Engine
-      Notification Engine
-      Forecast Engine
-      Device Manager
-
-────────────────────────────────────────
-
-             Home Assistant
-
-────────────────────────────────────────
-
- MQTT   Modbus   Bluetooth   REST   Matter
-
-────────────────────────────────────────
-
- PowMr   BMS   Shelly   ESPHome
-
- EV Charger   Heat Pump
-
- Sensors   Smart Plugs
-```
+- dashboards;
+- helpers;
+- selected household automations;
+- user controls;
+- mobile and persistent notifications;
+- external integrations such as Solcast.
 
 ---
 
 # Current EnergyHub Core
 
-The current implementation is built around small independent services.
+Current implemented services and subsystems include:
 
+- PowMr Local Adapter;
+- `InverterState`;
+- Telemetry Service;
+- Event Bus;
+- MQTT Publisher;
+- Communication Watchdog;
+- Grid Monitor;
+- Grid History Service;
+- Grid Stability / Confidence Engine;
+- Daily Summary Service;
+- Battery Health Monitor;
+- Telemetry Freshness Monitor;
+- Inverter Health Monitor;
+- System Health aggregation;
+- Hybrid Decision Engine;
+- Panic Decision Engine;
+- Inverter Controller;
+- Operating Mode state;
+- Autopilot state;
+- Grid Import Estimator;
+- notification event publishing.
+
+Current high-level data flow:
+
+```text
+PowMr Inverter
+      │
+      ▼
+PowMr Local Adapter
+      │
+      ▼
+Raw Telemetry
+      │
+      ▼
+Telemetry Service
+      │
+      ▼
+InverterState
+      │
+      ├──────────────► MQTT Telemetry
+      │
+      ├──────────────► Health Services
+      │
+      ├──────────────► Grid Monitor
+      │
+      ├──────────────► Grid Import Estimator
+      │
+      └──────────────► Decision Engines
+                              │
+                              ▼
+                       Operating Decision
+                              │
+                              ▼
+                      Inverter Controller
+                              │
+                              ▼
+                        PowMr Commands
 ```
-                    PowMr Local Adapter
-                            │
-                            ▼
-                     InverterState
-                            │
-                            ▼
-                       Event Bus
-                            │
-          ┌─────────────────┴─────────────────┐
-          ▼                                   ▼
-  TelemetryService                    GridMonitor
-                                              │
-                                              ▼
-                                     GridHistoryService
-                                              │
-                                              ▼
-                                   Grid Confidence Engine
-                                              │
-                                              ▼
-                                      Decision Engine
-                                              │
-                                              ▼
-                                     Automation Engine
-```
-
-Current implemented services:
-
-- PowMr Local Adapter
-- InverterState
-- Event Bus
-- Telemetry Service
-- Communication Watchdog
-- Grid Monitor
-- Grid History Service
-- Grid Confidence Engine (initial implementation)
-
-Future services:
-
-- Decision Engine
-- Automation Engine
-- Forecast Engine
-- Notification Engine
-- Device Manager
 
 ---
 
@@ -113,199 +148,775 @@ Future services:
 
 The homeowner interacts with simple concepts.
 
-Examples:
+Current concepts:
 
-- Summer Mode
-- Winter Mode
-- Away Mode
-- Panic Mode
+- Solar;
+- Hybrid;
+- Panic;
+- Away Mode;
+- Autopilot;
+- System Health;
+- Grid Confidence.
 
-Users should never need to understand inverter commands, MQTT topics or hardware protocols.
+Users should not need to understand:
+
+- `POP01`;
+- `POP02`;
+- `PCP01`;
+- `PCP02`;
+- PI30MAX;
+- MQTT topics;
+- serial communication details.
+
+The family-facing interface should explain:
+
+- what EnergyHub is doing;
+- why it made a decision;
+- whether the house is healthy;
+- whether user action is required.
+
+Detailed technical information remains available in engineering and testing views.
 
 ---
 
-# Layer 2 — EnergyHub Core
+# Layer 2 — Home Assistant Integration
 
-This layer contains all business logic.
+Home Assistant is the user-facing integration and automation platform.
 
-Responsibilities include:
+Current responsibilities:
 
-- Energy management decisions
-- Automation execution
-- Grid confidence evaluation
-- Forecast processing
-- Notification delivery
-- Device abstraction
-- Strategy selection
-
-The EnergyHub Core remains independent from specific hardware vendors.
-
----
-
-# Layer 3 — Home Assistant Platform
-
-Home Assistant acts as the integration platform.
-
-It provides:
-
-- Entity model
-- Automation framework
-- MQTT integration
-- Dashboard infrastructure
-- Device discovery
+- dashboards;
+- entity model;
+- helpers;
+- timers;
+- selected household automations;
+- Solcast integration;
+- MQTT integration;
+- persistent notifications;
+- future mobile and Telegram notifications.
 
 EnergyHub extends Home Assistant rather than replacing it.
 
----
+The integration is bidirectional:
 
-# Layer 4 — Communication
-
-Communication remains independent from business logic.
-
-Supported technologies include:
-
-- MQTT
-- Modbus
-- Bluetooth
-- REST APIs
-- Matter
-- Zigbee
-
-New protocols should be added without changing the upper layers.
-
----
-
-# Layer 5 — Devices
-
-Devices represent the physical infrastructure.
-
-Examples include:
-
-- Inverters
-- Batteries
-- Solar controllers
-- EV chargers
-- Heat pumps
-- Smart plugs
-- Sensors
-
-Devices should be replaceable without affecting the EnergyHub Core.
-
----
-
-# Design Principles
-
-Business logic must never depend directly on hardware.
-
-Instead of:
-
-```
-PCP03
+```text
+Home Assistant
+      │
+      │ inputs / commands
+      ▼
+     MQTT
+      │
+      ▼
+EnergyHub Core
+      │
+      │ telemetry / state / decisions
+      ▼
+     MQTT
+      │
+      ▼
+Home Assistant
 ```
 
-EnergyHub uses:
+Examples of Home Assistant inputs:
 
-```
-set_mode("panic")
-```
+- daily house consumption;
+- solar forecast today;
+- solar forecast tomorrow;
+- daily solar surplus;
+- Autopilot state;
+- inverter-mode requests.
 
-Hardware adapters translate generic commands into vendor-specific implementations.
+Examples of EnergyHub outputs:
+
+- telemetry;
+- Grid Confidence;
+- System Health;
+- Operating Mode;
+- Panic Decision;
+- Grid Import;
+- notification events.
 
 ---
 
-# Design Philosophy
+# Layer 3 — Telemetry and State
 
-EnergyHub is designed around **capabilities**, not devices.
+The Telemetry Service converts raw inverter data into validated EnergyHub state.
 
-The Decision Engine should never know whether a heat pump is controlled by:
+Current required telemetry includes:
 
-- Xiaomi
-- Shelly
-- Zigbee
-- Matter
+- Battery SOC;
+- House Load;
+- PV Power.
 
-Instead, it operates on abstract capabilities such as:
+Additional telemetry includes:
 
-- House Heating
-- Battery Charging
-- EV Charging
-- Grid Supply
-- Solar Generation
+- Grid Voltage;
+- Battery Voltage;
+- Battery Charging Current;
+- Battery Discharge Current;
+- inverter temperature;
+- output voltage and frequency.
 
-Hardware adapters translate these capabilities into device-specific implementations.
+The central state object is:
 
-This abstraction allows hardware to evolve without changing the EnergyHub decision logic.
+```text
+InverterState
+```
+
+It provides a normalized representation of current inverter conditions.
+
+The Decision Engine should consume normalized state rather than raw protocol output.
 
 ---
 
-# Mode Ownership
+# Layer 4 — Historical Knowledge
 
-EnergyHub automatically manages normal operating modes.
+EnergyHub stores historical information that cannot be understood from one telemetry sample.
 
-```
-Summer
-Owner: EnergyHub
+Current services include:
 
-Winter
-Owner: EnergyHub
+## Grid History
 
-Away
-Owner: EnergyHub
-```
+Stores grid availability events.
 
-Panic Mode is treated differently.
+Produces:
 
-If Panic Mode is activated manually:
+- 24-hour availability;
+- 48-hour availability;
+- Grid Confidence.
 
-```
-Owner: User
-```
+## Daily Summary
 
-EnergyHub remains in Panic Mode until the user manually selects another mode.
+Stores daily historical values.
 
-During this period EnergyHub only provides recommendations.
+Current values include:
 
-If Panic Mode is activated automatically by EnergyHub:
+- House Consumption;
+- Solar Forecast;
+- Solar Surplus Estimated;
+- Grid Availability.
 
-```
-Owner: EnergyHub
-```
+## Grid Import Estimation
 
-EnergyHub may automatically return to another operating mode according to its decision logic.
+Estimates current and accumulated grid import because the PowMr inverter does not provide a reliable import counter.
 
-This guarantees that manual emergency decisions always take priority over automatic optimization.
+Historical knowledge principle:
+
+> Calculate reusable historical knowledge once and allow dashboards and decision services to consume it.
 
 ---
 
-# Future Architecture
+# Layer 5 — Health and Reliability
 
-Current implementation focuses on Home Assistant.
+EnergyHub treats system health as a first-class subsystem.
 
-Future versions may support additional backends while preserving the same EnergyHub Core.
+Current architecture:
 
-Planned future integrations include:
+```text
+Communication Health
+        +
+Battery Health
+        +
+Telemetry Freshness
+        +
+Inverter Health
+        ↓
+System Health
+```
 
-- PowMr Cloud Adapter
-- JK BMS
-- Smart meters
-- Solcast
-- Weather forecasts
-- Dynamic electricity pricing
-- Net Billing
-- EV charging management
+## Communication Health
+
+Detects inverter communication state.
+
+## Battery Health
+
+Current v1 checks:
+
+- low SOC;
+- abnormal SOC jumps.
+
+## Telemetry Freshness
+
+Current v1 checks:
+
+- missing valid telemetry;
+- suspiciously unchanged House Load.
+
+## Inverter Health
+
+Polls `QPIWS` and interprets warning and fault flags.
+
+## System Health
+
+Aggregates subsystem health into one overall state and reason.
+
+Recovery remains deliberately separate from detection.
+
+EnergyHub must never automatically restart the inverter.
+
+---
+
+# Layer 6 — Decision Intelligence
+
+The Decision Engine converts current state, historical knowledge, forecasts, and strategy into explainable decisions.
+
+Current implemented decision services:
+
+- Hybrid Decision Engine;
+- Panic Decision Engine.
+
+Future decision services may include:
+
+- proactive battery reserve prediction;
+- consumption prediction;
+- advanced solar forecasting;
+- tariff optimization;
+- export optimization;
+- EV charging strategy.
+
+Every important decision should provide:
+
+```text
+Decision
++
+Reason
++
+Relevant Inputs
+```
+
+Explainability is a core architectural requirement.
+
+---
+
+# Hybrid Decision Architecture
+
+Hybrid is evaluated at 23:50.
+
+Inputs:
+
+```text
+Current Battery SOC
++
+Today's House Consumption
++
+Tomorrow's Solar Forecast
++
+Nominal Battery Capacity
+```
+
+Calculation:
+
+```text
+Battery Refill Required
+=
+Battery Capacity × Missing SOC Percentage
+```
+
+```text
+Required Energy
+=
+Today's House Consumption
++
+Battery Refill Required
+```
+
+Decision:
+
+```text
+Forecast Tomorrow >= Required Energy
+→ Solar
+
+Forecast Tomorrow < Required Energy
+→ Hybrid
+```
+
+Hybrid sequence:
+
+```text
+Hybrid Decision
+      │
+      ▼
+Hybrid Charging
+SUB + SNU
+      │
+      ▼
+SOC reaches 80%
+      │
+      ▼
+Hybrid Grid Hold
+SUB + OSO
+      │
+      ▼
+07:00
+      │
+      ▼
+Solar
+SBU + OSO
+```
+
+---
+
+# Panic Decision Architecture
+
+Panic protects battery reserve when current conditions indicate increased energy risk.
+
+Automatic evaluation occurs every 15 minutes between 12:00 and 23:50.
+
+Evaluation is active only in Solar mode.
+
+Common conditions:
+
+```text
+PV < 200 W
+AND
+Forecast Today < Previous Daily Consumption × 1.20
+```
+
+Unstable-grid strategy:
+
+```text
+Grid Confidence = unstable
+AND
+SOC < 50%
+→ Panic target 80%
+```
+
+Higher-risk strategy:
+
+```text
+Grid Confidence = risk
+AND
+SOC < 80%
+→ Panic target 95%
+```
+
+Panic sequence:
+
+```text
+Panic Decision
+      │
+      ▼
+SUB + SNU
+      │
+      ▼
+Target SOC reached
+      │
+      ▼
+Restore Solar
+      │
+      ▼
+Reevaluate Panic
+```
+
+---
+
+# Layer 7 — Control Execution
+
+Decision logic and hardware execution are separate responsibilities.
+
+The Decision Engine requests an operating strategy.
+
+The Inverter Controller executes the required hardware commands.
+
+Example:
+
+```text
+Decision:
+Enter Hybrid
+```
+
+becomes:
+
+```text
+Setting 01 → SUB
+Setting 16 → SNU
+```
+
+Current verified PowMr commands:
+
+```text
+POP01 → SUB
+POP02 → SBU
+
+PCP01 → SNU
+PCP02 → OSO
+PCP03 → CSO
+```
+
+Control execution includes:
+
+- command sending;
+- ACK validation;
+- QPIRI verification where supported;
+- bounded retries;
+- transition state;
+- transition failure state;
+- inverter settling time.
+
+The Decision Engine should never directly send PI30MAX commands.
+
+---
+
+# Operating Modes
+
+Current operating strategies:
+
+## Solar
+
+```text
+Setting 01 → SBU
+Setting 16 → OSO
+```
+
+## Hybrid Charging
+
+```text
+Setting 01 → SUB
+Setting 16 → SNU
+```
+
+## Hybrid Grid Hold
+
+```text
+Setting 01 → SUB
+Setting 16 → OSO
+```
+
+## Panic
+
+```text
+Setting 01 → SUB
+Setting 16 → SNU
+```
+
+## Away Mode
+
+Away Mode currently manages a flexible household heating load while preserving battery reserve.
+
+Away Mode is not currently a separate inverter configuration.
+
+---
+
+# Autopilot
+
+Autopilot determines whether EnergyHub may execute automatic inverter strategy changes.
+
+When enabled:
+
+- automatic Hybrid decisions may execute;
+- automatic Panic decisions may execute;
+- scheduled Solar restoration may execute.
+
+When disabled:
+
+- EnergyHub should return to or preserve the safe Solar strategy;
+- automatic decision execution is disabled.
+
+Autopilot is separate from Away Mode.
+
+---
+
+# Notifications
+
+EnergyHub owns the event that a significant automatic decision occurred.
+
+Home Assistant owns user-facing delivery.
+
+Architecture:
+
+```text
+EnergyHub Decision
+        │
+        ▼
+MQTT Notification Event
+        │
+        ▼
+Home Assistant Automation
+        │
+        ▼
+Persistent Notification
+Mobile Notification
+Future Telegram Notification
+```
+
+Current notification topic:
+
+```text
+energyhub/event/notification
+```
+
+Current automatic events:
+
+- Hybrid activated;
+- Panic activated.
+
+This keeps decision ownership inside EnergyHub while allowing Home Assistant to manage delivery channels.
+
+---
+
+# Grid Import Architecture
+
+The PowMr inverter does not provide a reliable accumulated Grid Import counter.
+
+EnergyHub estimates Grid Import from telemetry and known operating strategy.
+
+## Solar
+
+```text
+Grid Import
+=
+House Load
++ Battery Charging Power
+- Battery Discharging Power
+- PV Power
+```
+
+Values below 50 W are treated as zero.
+
+## Hybrid Charging / Panic
+
+```text
+Grid Import
+=
+House Load
++
+Battery Charging Power
+```
+
+## Hybrid Grid Hold
+
+```text
+Grid Import
+=
+House Load
+```
+
+The service:
+
+- integrates estimated power into energy;
+- resets daily;
+- persists state;
+- survives EnergyHub restarts;
+- avoids integrating long telemetry gaps.
+
+Grid Import is informational rather than billing-grade.
+
+---
+
+# Home Assistant Configuration Architecture
+
+The repository now stores reviewed Home Assistant configuration.
+
+Structure:
+
+```text
+homeassistant/
+├── live/
+│   ├── config/
+│   └── storage/
+└── legacy/
+```
+
+## `live/`
+
+Contains current synchronized Home Assistant files.
+
+## `legacy/`
+
+Contains older manual exports retained for reference.
+
+Synchronization workflow:
+
+```text
+Edit Home Assistant
+        │
+        ▼
+tools/dev/sync-from-ha.ps1
+        │
+        ▼
+homeassistant/live/
+        │
+        ▼
+Review Git Changes
+        │
+        ▼
+Commit
+```
+
+Only explicitly approved `.storage` files are synchronized.
+
+The complete Home Assistant `.storage` directory must never be committed.
+
+---
+
+# Current Hardware Boundary
+
+The current implementation directly supports:
+
+- PowMr 10.2M;
+- PI30MAX;
+- Home Assistant;
+- MQTT;
+- Solcast inputs;
+- selected Xiaomi smart-home devices through Home Assistant.
+
+This is the current implementation boundary, not the final architectural boundary.
+
+EnergyHub 1.x may contain practical PowMr-specific code where necessary.
+
+Future versions should progressively introduce capability abstractions when multiple hardware vendors are supported.
+
+---
+
+# Capability-Based Future Architecture
+
+Long-term EnergyHub architecture should be based on capabilities rather than device brands.
+
+Examples:
+
+```text
+Battery Storage
+Solar Generation
+Grid Supply
+House Heating
+Water Heating
+EV Charging
+Energy Export
+```
+
+The Decision Engine should eventually request capabilities:
+
+```text
+charge_battery(target_soc=80)
+```
+
+rather than vendor commands:
+
+```text
+POP01
+PCP01
+```
+
+Hardware adapters will translate generic requests into vendor-specific implementations.
+
+---
+
+# EnergyHub 1.x Architecture
+
+Focus:
+
+- reliable operation of the current house;
+- explainable autonomy;
+- configurable strategy parameters;
+- forecasting;
+- battery reserve prediction;
+- recovery;
+- flexible loads;
+- future EV charging.
+
+Goal:
+
+> Build a house that operates by itself as much as possible while remaining safe, understandable, and cost-effective.
+
+---
+
+# EnergyHub 2.x Architecture
+
+Focus:
+
+- multiple inverter vendors;
+- device capability abstraction;
+- dynamic tariffs;
+- import optimization;
+- export optimization;
+- Net Billing;
+- battery degradation modeling.
+
+Core question:
+
+> Is it better to consume, store, import, or export energy now?
+
+---
+
+# EnergyHub 3.x Architecture
+
+EnergyHub evolves into a complete Home Energy Management System.
+
+```text
+Weather
++
+Solar Forecast
++
+House Consumption
++
+Battery State
++
+Grid Reliability
++
+Electricity Prices
++
+EV Requirements
++
+Heating Requirements
+        │
+        ▼
+EnergyHub Intelligence
+        │
+        ▼
+Explainable Whole-Home Energy Strategy
+        │
+        ▼
+Device Capability Layer
+        │
+        ▼
+Inverters / Batteries / EV / Heating / Flexible Loads
+```
+
+---
+
+# Architectural Principles
+
+EnergyHub should remain:
+
+- local-first;
+- modular;
+- explainable;
+- progressively automated;
+- safe by design;
+- resilient to communication failures;
+- independent of cloud availability for core operation.
+
+Core separation:
+
+```text
+Telemetry
+≠
+Historical Knowledge
+≠
+Health
+≠
+Decision
+≠
+Control
+≠
+User Interface
+```
+
+Each subsystem should have a clear responsibility.
 
 ---
 
 # Architectural Goal
 
-EnergyHub should become the operating system layer that transforms independent smart devices into one autonomous home.
+EnergyHub should become the operating-system layer that transforms independent energy and smart-home devices into one coordinated autonomous home.
 
-The long-term objective is an autonomous energy management platform capable of optimizing:
+The system should optimize:
 
-- Energy resilience
-- Household comfort
-- Operating costs
-- Renewable energy utilization
-- Future Net Billing profitability
+- resilience;
+- comfort;
+- operating cost;
+- renewable energy utilization;
+- battery lifetime;
+- future import and export value.
 
-while remaining independent from any particular hardware vendor or home automation platform.
+The homeowner should interact with understandable strategies and outcomes rather than hardware protocols.
