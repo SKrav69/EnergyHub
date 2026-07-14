@@ -183,7 +183,7 @@ Future inputs may include:
 
 # Decision 007
 
-## Operating strategies are Solar, Hybrid, Panic, and Away
+## EnergyHub 1.0 operating strategies are Solar, Hybrid, and Panic
 
 ### Decision
 
@@ -191,8 +191,7 @@ The original Summer / Winter / Away concept is replaced by explicit EnergyHub op
 
 - Solar;
 - Hybrid;
-- Panic;
-- Away.
+- Panic.
 
 ### Reason
 
@@ -211,9 +210,6 @@ Hybrid
 
 Panic
 → protective charging caused by increased energy risk
-
-Away
-→ autonomous flexible-load operation while the house is unoccupied
 ```
 
 ---
@@ -567,13 +563,18 @@ Automatic Panic evaluation occurs every 15 minutes between 12:00 and 23:50.
 
 Unlike the daily Hybrid decision, Panic responds to changing daytime energy risk.
 
-### Current Common Conditions
+### Current Evaluation Order
 
 ```text
-PV < 200 W
-AND
-Forecast Today < Previous Daily Consumption × 1.20
+1. Autopilot enabled
+2. Inside the 12:00–23:50 evaluation window
+3. Current Operating Mode is Solar
+4. Evaluate Grid Confidence
+5. Evaluate Battery SOC threshold
+6. Compare Solar Forecast Today with Previous Daily Consumption × 1.20
 ```
+
+Instantaneous PV power is intentionally not used.
 
 ### Current Strategies
 
@@ -646,39 +647,36 @@ EnergyHub estimates Grid Import because the current PowMr interface does not pro
 Grid Import is important for:
 
 - historical energy understanding;
-- Hybrid testing;
+- Hybrid and Panic validation;
 - future economic optimization.
 
-### Current Mode-Aware Logic
+### Current Accounting Model
 
-Solar:
+Accounting follows SUB operating intervals.
 
-```text
-Grid Import
-=
-House Load
-+ Battery Charging Power
-- Battery Discharging Power
-- PV Power
-```
+It starts when EnergyHub enters:
 
-Hybrid Charging / Panic:
+- Hybrid Charging;
+- Hybrid Grid Hold;
+- Panic.
+
+It stops after EnergyHub returns to Solar/SBU.
 
 ```text
 Grid Import
 =
-House Load
+House Energy Supplied During SUB
 +
-Battery Charging Power
+Positive Battery SOC Gain × Nominal Battery Capacity
 ```
 
-Hybrid Grid Hold:
+Current nominal battery capacity:
 
 ```text
-Grid Import
-=
-House Load
+16 kWh
 ```
+
+Temporary SOC drops do not inflate the estimate.
 
 ### Constraint
 
@@ -688,33 +686,35 @@ Estimated Grid Import is informational and not billing-grade.
 
 # Decision 021
 
-## Solar-mode Grid Import uses a noise floor
+## Grid Import accounting follows strategy intervals rather than instantaneous power balance
 
 ### Decision
 
-Estimated Solar-mode Grid Import below 50 W is treated as zero.
+EnergyHub accumulates Grid Import across verified SUB intervals instead of estimating daily import continuously from unsynchronized instantaneous telemetry.
 
 ### Reason
 
-Telemetry values are not perfectly synchronized.
+The previous Solar-mode power-balance estimator could accumulate false energy because inverter telemetry values are not perfectly synchronized.
 
-Small positive balance errors can appear even when the inverter is not meaningfully importing energy from the grid.
+The SUB interval is a clearer operational boundary for known grid-powered strategies.
 
-Without a noise floor, these errors would accumulate into false daily Grid Import.
+### Impact
+
+The previous Solar-mode 50 W noise-floor decision is obsolete.
 
 ---
 
 # Decision 022
 
-## Grid Import state is persistent
+## Grid Import state is persistent and versioned
 
 ### Decision
 
-Daily estimated Grid Import is stored persistently.
+Daily estimated Grid Import is stored persistently and its storage format is schema-versioned.
 
 ### Reason
 
-EnergyHub restarts must not reset accumulated daily energy.
+EnergyHub restarts must not reset accumulated daily energy, and estimator redesigns must not silently reuse incompatible persisted values.
 
 ### Current Storage
 
@@ -722,69 +722,69 @@ EnergyHub restarts must not reset accumulated daily energy.
 /data/grid_import.json
 ```
 
-The service also resets daily accumulation at the day boundary.
+Current schema:
+
+```text
+schema_version = 2
+```
+
+The service also supports day-boundary finalization and yesterday history.
 
 ---
 
 # Decision 023
 
-## Away Mode controls flexible loads using ownership
+## Flexible-load automation must preserve ownership
 
 ### Decision
 
-EnergyHub tracks whether Away Mode started a controlled load.
+EnergyHub should track whether it started a controlled household load.
 
 ### Reason
 
-When Away Mode ends or stop conditions are reached, EnergyHub must not blindly switch off a device that was started manually or by another automation.
-
-### Current Helper
-
-```text
-input_boolean.energyhub_away_heat_pump_active
-```
+EnergyHub must not blindly switch off a device that was started manually or by another automation.
 
 ### Rule
 
 ```text
-EnergyHub may automatically stop the heat pump
+EnergyHub may automatically stop a household load
 only when EnergyHub previously started it.
 ```
 
-This ownership principle should be reused for future flexible-load control.
+### Status
+
+The principle is retained for future Smart Heating and flexible-load architecture.
+
+The original Away Mode implementation was deferred.
 
 ---
 
 # Decision 024
 
-## Away Mode v1 prioritizes useful solar consumption
+## Away Mode is deferred in favor of broader Smart Heating architecture
 
 ### Decision
 
-Away Mode v1 may start the first-floor heat pump when surplus energy and battery reserve are available.
-
-### Current Start Conditions
-
-```text
-Away Mode ON
-Temperature < 18°C
-SOC > 95%
-PV > 200 W
-```
-
-### Current Stop Conditions
-
-```text
-Temperature >= 23°C
-OR
-SOC <= 81%
-```
+Away Mode is not part of the final EnergyHub 1.0 operating strategy model.
 
 ### Reason
 
-The house can convert otherwise-unused solar energy into useful thermal energy while protecting battery reserve.
+The original Away concept mixed:
 
-Temporary PV fluctuations are ignored after the load starts.
+- occupancy;
+- comfort;
+- solar-surplus heating;
+- cheap-tariff opportunities;
+- battery reserve;
+- flexible-load control.
+
+These concerns require a broader Smart Heating and flexible-load architecture.
+
+### Impact
+
+This work moves to EnergyHub 1.1.
+
+The future design should consider both occupied and unoccupied operation rather than treating Away as an isolated energy strategy.
 
 ---
 
@@ -800,8 +800,7 @@ Selected Home Assistant configuration is synchronized into the EnergyHub Git rep
 
 ```text
 homeassistant/
-├── live/
-└── legacy/
+└── live/
 ```
 
 ### Reason
@@ -876,7 +875,7 @@ Technical limits depend on installed hardware.
 
 Strategy settings depend on homeowner preferences and operating goals.
 
-EnergyHub 1.1 will progressively make trusted strategy parameters configurable.
+EnergyHub 1.2 will progressively make trusted strategy parameters configurable.
 
 ---
 
@@ -920,7 +919,7 @@ EnergyHub should evolve toward reconstructing the current operating strategy aft
 ### Intended Mapping
 
 ```text
-SUB + SNU → Hybrid Charging
+SUB + SNU → Hybrid Charging or Panic; additional context required
 SUB + OSO → Hybrid Grid Hold
 SBU + OSO → Solar
 ```
@@ -939,6 +938,116 @@ Planned high-priority stabilization work.
 
 # Decision 030
 
+## Hybrid evaluations publish retained explainable data
+
+### Decision
+
+EnergyHub retains the final Hybrid decision, reason, and evaluation inputs.
+
+### Current Data
+
+- final decision;
+- decision reason;
+- Battery SOC used;
+- House Consumption used;
+- Battery Refill Required;
+- Total Energy Required;
+- Solar Forecast Tomorrow used.
+
+### Reason
+
+A homeowner should be able to understand not only what EnergyHub decided, but which values produced that decision.
+
+This also improves debugging and real-system validation.
+
+---
+
+# Decision 031
+
+## Panic decisions do not use instantaneous PV power
+
+### Decision
+
+Current PV power is not an input to the final EnergyHub 1.0 automatic Panic decision.
+
+### Reason
+
+Instantaneous PV power can change rapidly because of clouds and time of day.
+
+The Panic decision already uses:
+
+- Grid Confidence;
+- Battery SOC;
+- Solar Forecast Today;
+- Previous Daily Consumption.
+
+These inputs better represent energy risk than a temporary PV reading.
+
+---
+
+# Decision 032
+
+## EnergyHub milestones separate Smart Loads, Configuration, and Recovery
+
+### Decision
+
+Post-1.0 development is divided into distinct milestones:
+
+```text
+1.1
+→ Smart Loads & Test-Drive Improvements
+
+1.2
+→ Configurable EnergyHub
+
+1.3
+→ Recovery & Resilience
+```
+
+### Reason
+
+These are separate architectural concerns.
+
+Smart Loads should evolve from real household needs.
+
+Configuration should expose safe strategy variables without mixing them with hardware limits.
+
+Recovery requires focused work on failure ownership, bounded retries, and state reconstruction.
+
+Separating the milestones keeps development understandable and prevents premature complexity.
+
+---
+
+# Decision 033
+
+## EnergyHub 1.0 enters test-drive before major new feature development
+
+### Decision
+
+After completion of Solar, Hybrid, Panic, Autopilot, health monitoring, Grid Intelligence, Daily Summary, Grid Import accounting, and Home Assistant integration, major new feature development pauses for real-system validation.
+
+### Reason
+
+The system should accumulate operational evidence before more complexity is added.
+
+Current priorities are:
+
+- Autopilot test driving;
+- full code review;
+- entity cleanup;
+- obsolete MQTT Discovery cleanup;
+- Grid Import rollover validation;
+- dashboard and chart redesign;
+- bug fixes.
+
+---
+
+# Decision 034
+
+## EnergyHub 1.0 prioritizes one reliable real installation over premature generalization
+
+
+
 ## EnergyHub 1.0 prioritizes one reliable real installation over premature generalization
 
 ### Decision
@@ -955,7 +1064,7 @@ Multi-vendor abstractions belong to later EnergyHub versions.
 
 ---
 
-# Decision 031
+# Decision 035
 
 ## EnergyHub evolves progressively
 
@@ -993,7 +1102,7 @@ This document will continue to evolve as EnergyHub grows.
 
 Likely future architectural decisions include:
 
-- configurable EnergyHub 1.1 parameters;
+- configurable EnergyHub 1.2 parameters;
 - advanced Grid Confidence weighting;
 - direct BMS integration;
 - EV charging strategy;

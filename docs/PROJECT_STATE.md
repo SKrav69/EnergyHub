@@ -1,6 +1,34 @@
 # EnergyHub Project State
 
-Last Updated: 2026-07-13
+Last Updated: 2026-07-14
+
+---
+
+# Current Milestone
+
+EnergyHub 1.0 feature development is complete.
+
+The project has reached the point where the house can make and execute its own energy decisions using:
+
+- current battery SOC;
+- house consumption;
+- solar forecast;
+- grid reliability;
+- operating time windows;
+- verified inverter control.
+
+EnergyHub 1.0 now enters a test-drive and cleanup phase.
+
+The immediate goal is no longer to add major features. The goal is to:
+
+- run EnergyHub in Autopilot;
+- catch bugs;
+- verify real overnight and daytime decisions;
+- review code quality;
+- clean entity naming;
+- improve charts and dashboards;
+- confirm daily Grid Import rollover;
+- polish documentation and infographics.
 
 ---
 
@@ -13,43 +41,22 @@ Its purpose is not only to monitor energy, but to make explainable decisions abo
 - solar use;
 - battery reserve;
 - grid reliability;
-- night charging;
+- cheap-tariff charging;
 - emergency charging;
 - flexible loads;
-- heating;
-- future EV charging and export optimization.
+- future heating control;
+- future EV charging;
+- future import and export optimization.
 
 EnergyHub should remain:
 
 - local first;
-- calm;
 - explainable;
+- calm;
 - modular;
-- reliable;
+- resilient;
 - suitable for daily family use;
-- progressively automated rather than fully autonomous from day one.
-
----
-
-# Current Milestone
-
-EnergyHub has reached the point where it can make and execute its own operating decisions.
-
-Current completed operating strategies:
-
-- Solar
-- Hybrid Charging
-- Hybrid Grid Hold
-- Panic
-- Away Mode v1
-
-The current chapter is focused on finishing EnergyHub 1.0:
-
-- validate decision behavior;
-- improve dashboards;
-- synchronize Home Assistant configuration into Git;
-- update documentation;
-- polish naming, logs and user experience.
+- progressively automated.
 
 ---
 
@@ -68,10 +75,10 @@ EnergyHub Core
    ↓
 Decision and Control Services
    ↓
-PowMr Inverter / Battery / Smart Loads
+PowMr Inverter / Battery / Future Smart Loads
 ```
 
-Current EnergyHub Core modules:
+Current EnergyHub Core services:
 
 - Telemetry Service
 - Event Bus
@@ -88,78 +95,98 @@ Current EnergyHub Core modules:
 - Hybrid Decision Engine
 - Panic Decision Engine
 - Inverter Controller
-- Grid Import Estimator
+- Grid Import Service
 - Autopilot State
 
-Future modules:
+Future services:
 
-- configurable parameter service;
-- recovery service;
-- notification policy engine;
-- forecast engine;
-- multi-inverter device manager;
-- direct BMS adapter;
-- tariff and export optimization services.
+- Configurable Parameter Service
+- Recovery Service
+- Smart Load Engine
+- EV Charging Engine
+- Notification Policy Engine
+- Multi-Inverter Device Manager
+- Direct BMS Adapter
+- Tariff and Export Optimization Services
 
 ---
 
-# Current Features Implemented
+# EnergyHub 1.0 — Implemented Features
 
-## Telemetry and Device Integration
+## Inverter Integration
 
-- PowMr 10.2M communication through PI30MAX.
-- MQTT communication.
-- MQTT Discovery.
-- Real-time inverter telemetry.
-- QPIGS, QPIRI, QPIWS and QMOD support.
-- Programmatic Setting 01 and Setting 16 control.
-- Verified inverter transitions with ACK, QPIRI and physical inverter display.
+- PowMr 10.2M communication through PI30MAX
+- MQTT communication
+- MQTT Discovery
+- real-time inverter telemetry
+- QPIGS support
+- QPIRI support
+- QPIWS support
+- QMOD support
+- programmatic Setting 01 control
+- programmatic Setting 16 control
+- ACK handling
+- bounded verification retries
+- real-inverter validation
 
-## Health and Reliability
+## Operating Strategies
 
-- Communication Watchdog.
-- Communication Health.
-- Battery Health Monitor v1.
-- Telemetry Freshness Monitor v1.
-- Inverter Health Monitor v1.
-- System Health aggregation.
-- QPIWS warning and fault polling.
-- Safe transition verification with retries.
-- Safe Solar recovery when Autopilot is disabled.
+- Solar
+- Hybrid Charging
+- Hybrid Grid Hold
+- Panic
+- Manual Panic
+- automatic return to Solar
+- safe Solar recovery when Autopilot is disabled
+
+## Decision Engines
+
+- Hybrid Decision Engine
+- Panic Decision Engine
+- Hybrid evaluation at 23:50
+- Panic evaluation every 15 minutes in the configured window
+- explainable decision reasons
+- retained Hybrid evaluation data
+- automatic notification events
 
 ## Grid Intelligence
 
-- Grid availability tracking.
-- 24-hour and 48-hour availability.
-- Grid Confidence.
-- Grid event history.
-- Daily Grid Availability.
-- Estimated Grid Import power.
-- Estimated Daily Grid Import energy.
+- Grid event history
+- Grid Availability 24h
+- Grid Availability 48h
+- Grid Confidence
+- Grid Confidence states:
+  - Normal
+  - Unstable
+  - Risk
+  - Panic
 
-## Decision and Operating Modes
+## Health Monitoring
 
-- Solar strategy.
-- Hybrid Decision Engine.
-- Hybrid Charging.
-- Hybrid Grid Hold.
-- Panic Decision Engine.
-- Automatic Panic targets of 80% or 95%.
-- Manual Panic.
-- Away Mode v1.
-- Automatic notifications for Hybrid and Panic decisions.
+- Communication Watchdog
+- Communication Health
+- Battery Health Monitor
+- Telemetry Freshness Monitor
+- Inverter Health Monitor
+- System Health aggregation
+- QPIWS warning and fault polling
+- SOC jump detection
+- low SOC warning
+- stale telemetry detection
 
-## Home Assistant
+## Home Assistant Integration
 
-- Family and engineering dashboard cards.
-- EnergyHub control card.
-- Human-readable source-priority display.
-- EnergyHub Intelligence card.
-- Energy Balance chart.
-- Grid Import display and chart integration.
-- Floor 3 heat-pump auto-off.
-- Away Mode heat-pump control.
-- Home Assistant configuration synchronization to Git.
+- Autopilot helper
+- manual mode scripts
+- Hybrid schedule automation
+- restore-after-restart automation
+- notification automation
+- Decision Logic dashboard
+- EnergyHub Status dashboard
+- Energy Balance chart
+- human-readable inverter priority display
+- Home Assistant → Git synchronization workflow
+- Git → Home Assistant deployment workflow
 
 ---
 
@@ -184,7 +211,7 @@ PCP02 → OSO
 PCP03 → CSO
 ```
 
-Current mode mapping:
+## Current Strategy Mapping
 
 ```text
 Solar
@@ -204,17 +231,17 @@ Setting 01 → SUB
 Setting 16 → SNU
 ```
 
-Transition verification may occasionally return no QPIRI result on the first attempt.
+QPIRI verification may occasionally return no result on the first attempt.
 
-This is currently handled by bounded retries and has been validated successfully on the real inverter.
+EnergyHub handles this with bounded retries.
 
 ---
 
-# Operating Mode Logic
+# Operating Logic
 
 ## Solar
 
-Solar is the default operating strategy.
+Solar is the default strategy.
 
 ```text
 Setting 01 → SBU
@@ -239,41 +266,51 @@ Hybrid is evaluated at 23:50.
 Inputs:
 
 - current Battery SOC;
-- today's house consumption;
-- tomorrow's solar forecast;
+- current-day house consumption;
+- next-day solar forecast;
 - nominal battery capacity of 16 kWh.
 
 Battery refill energy:
 
 ```text
-Battery refill required
+Battery Refill Required
 =
-16 kWh × missing SOC percentage
+16 kWh × Missing SOC Percentage
 ```
 
-Required tomorrow energy:
+Required energy:
 
 ```text
-Required energy
+Required Energy
 =
-Today's house consumption
+Current-Day House Consumption
 +
-Energy required to refill the battery to 100%
+Battery Refill Required
 ```
 
 Decision:
 
 ```text
-Tomorrow forecast >= required energy
+Forecast Tomorrow >= Required Energy
 → remain in Solar
 
-Tomorrow forecast < required energy
-→ enter Hybrid
+Forecast Tomorrow < Required Energy
+→ activate Hybrid
 ```
 
-No additional loss factor is used for Hybrid.
+No additional loss factor is used.
 
-The 16 kWh battery itself provides a practical buffer if the forecast or consumption is imperfect.
+The battery itself provides the practical buffer against imperfect forecasts and changing consumption.
+
+Hybrid evaluation data is retained in MQTT and shown in the Decision Logic dashboard:
+
+- final decision;
+- decision reason;
+- SOC used;
+- house consumption used;
+- battery energy to full;
+- total energy required;
+- forecast tomorrow.
 
 ---
 
@@ -285,7 +322,7 @@ Setting 16 → SNU
 Target SOC → 80%
 ```
 
-When the battery reaches 80%:
+When the battery reaches the target:
 
 ```text
 Hybrid Charging
@@ -303,10 +340,9 @@ Setting 16 → OSO
 
 Behavior:
 
-- house remains on the night grid;
-- battery is no longer intentionally charged from the grid;
-- battery is preserved until morning;
-- SOC may remain around 79–80% without correction;
+- house remains on the cheap night grid;
+- battery is preserved;
+- no correction is required if SOC stabilizes around 79–80%;
 - at 07:00 EnergyHub restores Solar.
 
 ---
@@ -315,17 +351,25 @@ Behavior:
 
 Automatic Panic is evaluated every 15 minutes between 12:00 and 23:50.
 
-Evaluation is skipped unless EnergyHub is in Solar mode.
-
-Common prerequisites:
+Decision order:
 
 ```text
-PV power < 200 W
-AND
-Solar forecast today < previous daily consumption × 1.20
+1. Autopilot enabled
+2. Inside Panic evaluation window
+3. EnergyHub operating in Solar
+4. Grid Confidence
+5. Battery SOC threshold
+6. Solar forecast versus previous daily consumption × 1.20
 ```
 
-The 20% margin is intentionally used for Panic because Panic is a live protective decision.
+Current logic no longer uses current PV power.
+
+### Normal Grid
+
+```text
+Grid Confidence = normal
+→ no automatic Panic
+```
 
 ### Unstable Grid
 
@@ -333,15 +377,19 @@ The 20% margin is intentionally used for Panic because Panic is a live protectiv
 Grid Confidence = unstable
 AND
 SOC < 50%
+AND
+Forecast Today < Previous Daily Consumption × 1.20
 → Panic target 80%
 ```
 
-### Risk / Very Poor Grid
+### Risk or Panic Grid State
 
 ```text
-Grid Confidence = risk
+Grid Confidence = risk or panic
 AND
 SOC < 80%
+AND
+Forecast Today < Previous Daily Consumption × 1.20
 → Panic target 95%
 ```
 
@@ -360,65 +408,33 @@ Panic
 → reevaluate Panic after Solar confirmation
 ```
 
-Manual Panic currently uses a 95% target.
+Manual Panic uses a 95% target.
 
 ---
 
-## Away Mode v1
+# Autopilot
 
-Away Mode itself is enabled and disabled manually only.
+Autopilot controls whether EnergyHub may execute automatic operating strategies.
 
-Entity:
+When enabled, EnergyHub may:
 
-```text
-input_boolean.energyhub_away_mode
-```
+- evaluate Hybrid;
+- activate Hybrid;
+- enter Hybrid Grid Hold;
+- restore Solar at 07:00;
+- evaluate Panic;
+- activate Panic;
+- return to Solar.
 
-Away Mode controls the first-floor heat-pump smart plug:
+When disabled during an active or unknown strategy, EnergyHub performs a final safe Solar recovery.
 
-```text
-switch.lumi_v1_64d7_switch
-```
-
-Temperature input:
-
-```text
-sensor.miaomiaoce_t2_e515_temperature
-```
-
-Start conditions:
+Current helper:
 
 ```text
-Away Mode = ON
-Heat pump = OFF
-Temperature < 18°C
-SOC > 95%
-PV > 200 W
+input_boolean.energyhub_autopilot
 ```
 
-Once the heat pump starts, temporary PV fluctuations are ignored.
-
-Stop conditions:
-
-```text
-Temperature >= 23°C
-OR
-SOC <= 81%
-```
-
-Away Mode remains enabled after the plug stops.
-
-If the start conditions become true again later, including on a later day, the heat pump may start again.
-
-Ownership helper:
-
-```text
-input_boolean.energyhub_away_heat_pump_active
-```
-
-EnergyHub switches off the plug only when Away Mode started it.
-
-If the plug was turned on manually while Away Mode was off, EnergyHub leaves it alone.
+The duplicate Autopilot helper was removed.
 
 ---
 
@@ -430,41 +446,95 @@ EnergyHub publishes non-retained notification events to:
 energyhub/event/notification
 ```
 
-Current automatic notification types:
+Current automatic notifications:
 
-- Hybrid activated;
-- Panic activated.
+- Hybrid activated
+- Panic activated
 
-Home Assistant receives the MQTT event and creates the user-facing notification.
+Notifications are published only after the relevant automatic decision is made.
 
-Architecture:
+The event payload can be reused by:
 
-```text
-EnergyHub decides
-        ↓
-MQTT notification event
-        ↓
-Home Assistant
-        ↓
-Persistent notification / mobile / future Telegram
-```
-
-Manual mode requests do not currently generate the same automatic-decision notification.
+- Home Assistant persistent notifications;
+- mobile notifications;
+- future Telegram integration.
 
 ---
 
-# Grid Import Estimation
+# Grid Import Accounting
 
 The PowMr inverter does not provide a reliable accumulated Grid Import counter.
 
-EnergyHub therefore estimates import from telemetry and known operating mode.
+EnergyHub therefore calculates Grid Import while SUB-based strategies are active.
 
-MQTT entities:
+## Accounting Start
+
+Accounting starts when EnergyHub enters:
+
+- Hybrid Charging;
+- Hybrid Grid Hold;
+- Panic.
+
+These strategies use:
+
+```text
+Setting 01 = SUB
+```
+
+## Accounting Stop
+
+Accounting stops when EnergyHub returns to:
+
+```text
+Setting 01 = SBU
+```
+
+## Calculation Model
+
+```text
+Grid Import
+=
+House Energy Supplied During SUB
++
+Positive Battery SOC Gain × 16 kWh
+```
+
+Battery contribution uses the highest SOC reached relative to the SOC at the start of the SUB interval.
+
+Temporary SOC drops do not inflate the estimate.
+
+Example:
+
+```text
+SUB starts at 66%
+SUB ends at 80%
+
+Battery gain:
+14% × 16 kWh = 2.24 kWh
+
+House energy during SUB:
+0.85 kWh
+
+Grid Import:
+2.24 + 0.85 = 3.09 kWh
+```
+
+Current MQTT entities:
 
 ```text
 sensor.energyhub_grid_import_power_estimated
 sensor.energyhub_daily_grid_import_estimated
+sensor.energyhub_grid_import_yesterday_estimated
+sensor.energyhub_daily_grid_import_estimated_2
 ```
+
+Current naming conflict:
+
+```text
+sensor.energyhub_daily_grid_import_estimated_2
+```
+
+This is a known cleanup item for the next session.
 
 Persistence:
 
@@ -472,46 +542,15 @@ Persistence:
 /data/grid_import.json
 ```
 
-## Solar / SBU
+Current schema:
 
 ```text
-Estimated Grid Import
-=
-House Load
-+ Battery Charging Power
-- Battery Discharging Power
-- PV Power
+schema_version = 2
 ```
 
-Values below 50 W are treated as zero to suppress telemetry noise.
+The schema v2 migration discarded incompatible current-day totals from the previous estimator.
 
-## Hybrid Charging / Panic
-
-```text
-Estimated Grid Import
-=
-House Load
-+
-Battery Charging Power
-```
-
-## Hybrid Grid Hold
-
-```text
-Estimated Grid Import
-=
-House Load
-```
-
-The estimator:
-
-- integrates power into kWh;
-- resets at midnight;
-- survives EnergyHub restarts;
-- avoids integrating gaps longer than 60 seconds;
-- stores values only when the accumulated energy changes enough to justify a disk write.
-
-The result is informational and not a certified utility-meter value.
+Grid Import values are informational and not billing-grade.
 
 ---
 
@@ -526,14 +565,14 @@ energyhub/input/ha/solar_forecast_tomorrow
 energyhub/input/ha/daily_solar_surplus_estimated
 ```
 
-Current EnergyHub daily sensors:
+Current EnergyHub daily values:
 
 ```text
 sensor.energyhub_daily_house_consumption
 sensor.energyhub_daily_solar_forecast
 sensor.energyhub_daily_solar_surplus_estimated
 sensor.energyhub_daily_grid_availability
-sensor.energyhub_daily_grid_import_estimated
+sensor.energyhub_daily_grid_import_estimated_2
 ```
 
 Schedule:
@@ -546,7 +585,7 @@ Schedule:
 → evaluate Hybrid
 
 23:51
-→ publish final daily values / snapshot
+→ refresh final daily snapshot
 ```
 
 Persistence:
@@ -557,94 +596,96 @@ Persistence:
 
 ---
 
-# Current Dashboard Architecture
+# Decision Logic Dashboard
 
-## EnergyHub Controls
+The Decision Logic dashboard now shows:
 
-Contains:
+## Grid Situation
 
-- Autopilot;
-- Away Mode;
-- Panic button;
-- current operating mode.
+- Grid Confidence
+- Grid Available — Last 24 Hours
+- Grid Available — Last 48 Hours
 
-## EnergyHub Status
+## Night Tariff Decision
 
-Contains:
+- Final Decision
+- Battery SOC used
+- House Consumption Today
+- Battery Energy to Full
+- Total Energy Required
+- Solar Forecast Tomorrow
+- Decision Reason
 
-- human-readable house power priority;
-- human-readable battery charging source;
-- Communication;
-- Battery SOC;
-- battery currents;
-- House Load;
-- Solar Power;
-- Grid Voltage;
-- Estimated Grid Import Power;
-- Estimated Grid Import Today.
+## Panic Decision
 
-## EnergyHub Intelligence
+- Solar Forecast Today
+- Previous Daily Consumption
+- Panic Decision
+- Panic Decision Reason
 
-Contains current decision inputs:
+The dashboard now explains why EnergyHub remains in Solar or activates Hybrid/Panic.
 
-- Grid Confidence;
-- Grid Availability 24h;
-- Grid Availability 48h;
-- current SOC;
-- consumption today;
-- forecast tomorrow;
-- PV power;
-- forecast today;
-- previous daily consumption;
-- Panic Decision and reason;
-- Grid Import results.
+Further visual optimization is deferred to the next session.
 
-Future additions:
+---
 
-- Hybrid Decision;
-- Hybrid Decision Reason;
-- Hybrid Required Energy;
-- Battery Refill Required.
+# Energy Balance Chart
 
-## Energy Balance Chart
+Current chart content:
 
-Current 7-day chart:
-
-- House Consumption;
-- Solar Surplus Estimated;
-- Grid Import Estimated;
-- Grid Availability.
+- House Consumption
+- Unused Solar Estimated
+- Grid Import
+- Grid Availability
 
 Header values:
 
-- Consumption Today;
-- Grid Import Today;
-- Forecast Today;
-- Forecast Tomorrow.
+- Consumption Today
+- Grid Import Today
+- Forecast Today
+- Forecast Tomorrow
 
-Dashboard layout and naming will be polished later.
+Known presentation issue:
+
+- current-day Grid Import may show `0`;
+- old Daily Summary history may still show a previous incompatible value;
+- historical entity naming includes `_2`.
+
+This is a temporary cleanup issue, not a logic failure.
+
+---
+
+# Away Mode Status
+
+Away Mode is not part of the final EnergyHub 1.0 logic.
+
+The original Away concept mixed:
+
+- occupancy state;
+- solar-surplus heating;
+- cheap-tariff heating;
+- flexible-load control.
+
+This requires a cleaner Smart Load architecture.
+
+Away / Smart Heating development is deferred to EnergyHub 1.1.
 
 ---
 
 # Home Assistant Configuration in Git
 
-Home Assistant configuration is now synchronized into the repository.
-
-Structure:
+Current structure:
 
 ```text
 homeassistant/
-├── live/
-│   ├── config/
-│   └── storage/
-└── legacy/
+└── live/
+    ├── config/
+    └── storage/
 ```
 
-## `live/`
+The old manually maintained `homeassistant/legacy/` files were removed from Git.
 
-Exact reviewed files copied from Home Assistant.
-
-Current synchronized files:
+Current synchronized files include:
 
 ```text
 config/
@@ -662,25 +703,27 @@ storage/
   lovelace_resources
 ```
 
-## `legacy/`
-
-Older manually exported YAML files retained for reference.
-
-## Sync Workflow
+Workflow:
 
 ```text
-Edit dashboards / automations / helpers in HA
-        ↓
-Run tools/dev/sync-from-ha.ps1
-        ↓
-Review Git changes
-        ↓
-Commit
+Edit in Home Assistant
+→ run tools/dev/sync-from-ha.ps1
+→ review in GitHub Desktop
+→ commit
+→ push
 ```
 
-Only explicitly approved `.storage` files are synchronized.
+Add-on workflow:
 
-The full `.storage` directory must never be committed.
+```text
+Edit in VS Code
+→ deploy with tools/dev/deploy-to-ha.ps1
+→ rebuild / restart
+→ test
+→ review in GitHub Desktop
+→ commit
+→ push
+```
 
 ---
 
@@ -698,7 +741,7 @@ Inverter Health
 System Health
 ```
 
-## Battery Health v1
+## Battery Health
 
 ```text
 SOC < 15%
@@ -709,7 +752,7 @@ AND absolute SOC change >= 2%
 → warning
 ```
 
-## Telemetry Freshness v1
+## Telemetry Freshness
 
 ```text
 No valid telemetry for 60 seconds
@@ -719,7 +762,7 @@ House Load unchanged for 5 minutes
 → warning
 ```
 
-## Inverter Health v1
+## Inverter Health
 
 EnergyHub polls QPIWS every 60 seconds.
 
@@ -729,7 +772,7 @@ Persistent real-system finding:
 eeprom_fault = 1
 ```
 
-The operational meaning remains under investigation.
+Its operational meaning remains under investigation.
 
 EnergyHub must never automatically restart the inverter.
 
@@ -747,144 +790,175 @@ PowMr PI30MAX does not expose:
 
 Therefore:
 
-- PV telemetry is operational rather than a complete generation meter;
+- PV telemetry is operational rather than complete;
 - Solcast is used for forecast-based decisions;
-- Grid Import is estimated;
-- energy totals are informational rather than billing-grade.
+- Grid Import is calculated;
+- totals are informational rather than billing-grade.
 
 ---
 
-# Known Issues and Deferred Polishing
+# Known Issues and Deferred Cleanup
 
-## Startup Panic Log
+## Entity Naming
 
-During startup, Panic may initially log:
+Resolve naming conflicts such as:
 
 ```text
-Operating mode is unknown, not solar
+sensor.energyhub_daily_grid_import_estimated_2
 ```
 
-This is expected before Solar is restored and confirmed.
+## Obsolete MQTT Discovery
 
-Later polishing may rename this state to a deferred evaluation.
+Review and remove obsolete retained MQTT Discovery entities.
 
-## Night Restart Recovery
+## Grid Import Rollover
 
-The current Home Assistant restart automation still restores Hybrid based mainly on time.
+Verify:
 
-Future recovery should reconstruct the strategy from verified inverter settings:
+- midnight reset;
+- yesterday finalization;
+- Daily Summary history;
+- chart continuity.
+
+## Dashboard and Chart Review
+
+Review all dashboards and charts for:
+
+- consistent style;
+- compact layout;
+- better naming;
+- smart summaries;
+- less duplicate information;
+- clearer icons;
+- better date labels;
+- dynamic visual states.
+
+## Code Review
+
+Perform a complete post-1.0 code review after the implementation sprint.
+
+## Restart Recovery
+
+Improve reconstruction of operating strategy from verified inverter settings:
 
 ```text
-SUB + SNU → Hybrid Charging
+SUB + SNU → Hybrid Charging or Panic
 SUB + OSO → Hybrid Grid Hold
 SBU + OSO → Solar
 ```
 
-## Duplicate Autopilot Helpers
+## Persistent Inverter Fault
 
-Both currently exist:
-
-```text
-input_boolean.energyhub_autopilot
-input_boolean.name_energyhub_autopilot
-```
-
-The active configuration currently uses:
+Investigate:
 
 ```text
-input_boolean.name_energyhub_autopilot
+eeprom_fault = 1
 ```
-
-The duplicate should be removed during cleanup.
-
-## Dashboard and Naming Cleanup
-
-Future polishing should:
-
-- align entity names;
-- align card titles;
-- improve chart styling;
-- reduce duplicate information;
-- replace remaining abbreviations with family-friendly labels;
-- expose Hybrid Decision sensors.
 
 ---
 
-# Current Priorities
+# Next Session
 
-1. Complete documentation updates.
-2. Commit the current EnergyHub decision and Home Assistant sync milestone.
-3. Review and polish dashboards and charts.
-4. Add Hybrid Decision MQTT sensors.
-5. Improve restart recovery by reconstructing the current inverter strategy.
-6. Add a configurable parameter dashboard.
-7. Continue bounded recovery design.
-8. Investigate persistent `eeprom_fault`.
-9. Revisit direct JK BMS integration when useful.
+The next session is a quality and cleanup session.
 
----
-
-# Future Parameter Dashboard — EnergyHub 1.1
-
-A future dashboard should allow trusted family members to adjust operating parameters without editing code.
-
-Examples:
-
-- Hybrid evaluation time;
-- Hybrid target SOC;
-- Hybrid morning exit time;
-- Panic SOC thresholds;
-- Panic target SOC;
-- Away Mode start SOC;
-- Away Mode stop SOC;
-- Away Mode start temperature;
-- Away Mode stop temperature;
-- Away Mode PV threshold;
-- other technical thresholds.
-
-Examples:
+Planned order:
 
 ```text
-Hybrid target:
-80% → 70% or 90%
-
-Away Mode SOC range:
-95% / 81% → configurable values such as 95% / 60%
+1. Full code review
+2. Fix entity names such as *_2
+3. Remove obsolete MQTT Discovery entities
+4. Verify Grid Import rollover and history
+5. Review every chart and dashboard
+6. Make dashboards more compact, consistent, visual, and smart
+7. Fix test-drive bugs
+8. Update documentation if implementation changes
 ```
 
-These values should become controlled helpers or EnergyHub configuration parameters with safe bounds.
+No large feature development is planned for this session.
 
 ---
 
-# Product Evolution
+# Product Roadmap
 
-## EnergyHub 1.x
+## EnergyHub 1.0 — Autonomous Home
 
-Goal:
+Status:
 
-Build a house that operates by itself as much as possible while remaining cost-effective and resilient.
+```text
+Feature development complete
+Test-drive and cleanup phase started
+```
 
 Focus:
 
-- PowMr;
-- autonomy;
+- autonomous Solar / Hybrid / Panic operation;
 - battery management;
 - grid reliability;
 - solar forecast;
-- smart loads;
-- explainable operating modes;
-- parameter configuration in 1.1.
+- explainable decisions;
+- health monitoring;
+- Grid Import accounting;
+- Home Assistant integration.
 
-## EnergyHub 2.x
+## EnergyHub 1.1 — Smart Loads & Test-Drive Improvements
 
-Goal:
+Planned after 2–3 weeks of real Autopilot operation.
 
-Optimize import, export and monetary value.
+Focus:
+
+- bug fixes;
+- dashboard improvements;
+- chart cleanup;
+- Smart Heating architecture;
+- rethink Away;
+- solar-surplus heating;
+- cheap-tariff heating;
+- EV charging template;
+- cosmetic and usability improvements.
+
+## EnergyHub 1.2 — Configurable EnergyHub
+
+Focus:
+
+- configurable cheap-tariff window;
+- configurable Panic evaluation window;
+- battery capacity;
+- grid charging current;
+- Hybrid target SOC;
+- Panic profiles;
+- safe user-adjustable thresholds;
+- family settings dashboard.
+
+Possible Panic profiles:
+
+```text
+Conservative
+SOC 80% → charge to 95%
+
+Relaxed
+SOC 50% → charge to 80%
+```
+
+## EnergyHub 1.3 — Recovery & Resilience
+
+Focus:
+
+- MQTT recovery;
+- network recovery;
+- serial communication recovery;
+- inverter communication recovery;
+- mpp-solar timeout handling;
+- Home Assistant connectivity recovery;
+- bounded retries;
+- safe-state reconstruction;
+- external watchdog strategy.
+
+## EnergyHub 2.x — Energy Economics
 
 Focus:
 
 - multiple inverter support;
-- Deye, GoodWe, Victron and other vendors;
+- Deye / GoodWe / Victron / other platforms;
 - dynamic tariffs;
 - energy price forecasting;
 - import optimization;
@@ -892,64 +966,18 @@ Focus:
 - net billing;
 - battery degradation model.
 
-## EnergyHub 3.x
-
-Goal:
-
-Become a full Home Energy Management System.
+## EnergyHub 3.x — Full Home Energy Management System
 
 Focus:
 
 - solar forecast;
 - weather;
-- dynamic electricity markets;
+- dynamic electricity market;
 - EV charging;
 - heat pumps;
 - battery storage;
 - grid reliability;
 - energy trading.
-
----
-
-# Development Workflow
-
-## EnergyHub Python Code
-
-```text
-Edit in VS Code
-→ deploy with tools/dev/deploy-to-ha.ps1
-→ rebuild / restart add-on
-→ test on real hardware
-→ commit
-```
-
-## Home Assistant Configuration
-
-```text
-Edit in Home Assistant
-→ run tools/dev/sync-from-ha.ps1
-→ review synchronized files
-→ commit
-```
-
-Every runtime change should be tested on the real EnergyHub system before commit.
-
-Documentation remains part of the implementation.
-
----
-
-# Next Session
-
-Recommended next work:
-
-```text
-1. Finish and commit documentation
-2. Review current charts and dashboard naming
-3. Add Hybrid Decision MQTT sensors
-4. Improve restart recovery
-5. Review backlog and close completed items
-6. Create final operating-mode infographic from confirmed logic
-```
 
 ---
 
@@ -971,4 +999,4 @@ Validated Automation
 Autonomous Home Operation
 ```
 
-The system should automate only behavior that has been validated against real household operation.
+Automation should only be trusted after validation against real household operation.

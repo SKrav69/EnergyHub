@@ -21,6 +21,8 @@ from app.mqtt.publisher import (
     publish_grid_import_discovery,
     publish_health,
     publish_health_discovery,
+    publish_hybrid_decision,
+    publish_hybrid_decision_discovery,
     publish_inverter_health,
     publish_inverter_health_discovery,
     publish_inverter_settings,
@@ -119,7 +121,10 @@ def main():
     history = GridHistoryService()
     grid_import = GridImportService()
     stability = GridStabilityEngine(history)
-    daily_summary = DailySummaryService(history)
+    daily_summary = DailySummaryService(
+        history,
+        grid_import,
+    )
     hybrid_decision = HybridDecisionEngine()
     panic_decision = PanicDecisionEngine()
 
@@ -303,6 +308,11 @@ def main():
             consumption_today=consumption_today,
         )
 
+        publish_hybrid_decision(
+            client,
+            hybrid_decision,
+        )
+
         log(
             "Hybrid evaluation: "
             f"status={decision['status']}, "
@@ -351,7 +361,6 @@ def main():
             autopilot_enabled=autopilot.is_enabled(),
             operating_mode=inverter_controller.mode,
             grid_confidence=grid_confidence,
-            pv_power=state.pv_power,
             battery_soc=state.battery_soc,
             forecast_today=forecast_today,
             consumption_yesterday=consumption_yesterday,
@@ -494,6 +503,7 @@ def main():
     publish_inverter_health_discovery(client)
     publish_inverter_settings_discovery(client)
     publish_operating_mode_discovery(client)
+    publish_hybrid_decision_discovery(client)
     publish_panic_decision_discovery(client)
     publish_autopilot_discovery(client)
     publish_system_health_discovery(client)
@@ -512,6 +522,11 @@ def main():
     publish_autopilot(
         client,
         autopilot,
+    )
+
+    publish_hybrid_decision(
+        client,
+        hybrid_decision,
     )
 
     publish_panic_decision(
@@ -655,14 +670,7 @@ def main():
                 grid_import.update(
                     operating_mode=inverter_controller.mode,
                     output_power_w=state.load_power,
-                    pv_power_w=state.pv_power,
-                    battery_voltage_v=state.battery_voltage,
-                    battery_charging_current_a=state.raw.get(
-                        "battery_charging_current"
-                    ),
-                    battery_discharge_current_a=state.raw.get(
-                        "battery_discharge_current"
-                    ),
+                    battery_soc=state.battery_soc,
                 )
 
                 publish_grid_import(

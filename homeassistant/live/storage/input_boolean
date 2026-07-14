@@ -9,10 +9,6 @@
         "name": "EnergyHub Autopilot"
       },
       {
-        "id": "name_energyhub_autopilot",
-        "name": "Name: EnergyHub Autopilot"
-      },
-      {
         "id": "energyhub_away_mode",
         "name": "EnergyHub Away Mode"
       },

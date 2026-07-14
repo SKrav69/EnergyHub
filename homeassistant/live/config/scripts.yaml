@@ -3,12 +3,11 @@ energyhub_start_panic:
   description: Starts manual Panic charging when Autopilot is enabled.
   mode: single
   sequence:
-    - condition: state
-      entity_id: input_boolean.name_energyhub_autopilot
-      state: "on"
-
-    - action: mqtt.publish
-      data:
-        topic: energyhub/input/ha/inverter_mode
-        payload: panic
-        retain: false
+  - condition: state
+    entity_id: input_boolean.energyhub_autopilot
+    state: 'on'
+  - action: mqtt.publish
+    data:
+      topic: energyhub/input/ha/inverter_mode
+      payload: panic
+      retain: false

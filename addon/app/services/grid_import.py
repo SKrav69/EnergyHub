@@ -7,22 +7,45 @@ from app.utils.logger import log
 
 
 GRID_IMPORT_FILE = Path("/data/grid_import.json")
-SOLAR_NOISE_FLOOR_W = 50.0
+SCHEMA_VERSION = 2
+BATTERY_CAPACITY_KWH = 16.0
+
+SUB_OPERATING_MODES = {
+    "hybrid_charging",
+    "hybrid_grid_hold",
+    "panic",
+}
 
 
 class GridImportService:
     def __init__(self):
         self.date = datetime.now().strftime("%Y-%m-%d")
-        self.daily_energy_kwh = 0.0
+
+        self.house_energy_kwh = 0.0
+        self.battery_energy_kwh = 0.0
         self.current_power_w = 0.0
+        self.yesterday_energy_kwh = 0.0
+
+        self.sub_active = False
+        self.sub_start_soc = None
+        self.sub_max_soc = None
+        self.sub_battery_accounted_kwh = 0.0
+
         self.last_update_monotonic = None
-        self.last_saved_energy_kwh = 0.0
+        self.last_saved_total_kwh = 0.0
 
         self.load()
 
+    @property
+    def daily_energy_kwh(self):
+        return self.house_energy_kwh + self.battery_energy_kwh
+
     def load(self):
         if not GRID_IMPORT_FILE.exists():
-            log("Grid import history not found. Starting from 0 kWh.")
+            log(
+                "Grid import history not found. "
+                "Starting from 0 kWh."
+            )
             return
 
         try:
@@ -31,35 +54,103 @@ class GridImportService:
             )
 
             stored_date = data.get("date")
+            stored_schema_version = int(
+                data.get("schema_version", 1)
+            )
             today = datetime.now().strftime("%Y-%m-%d")
 
-            if stored_date == today:
-                self.date = stored_date
-                self.daily_energy_kwh = float(
-                    data.get("daily_energy_kwh", 0.0)
+            self.yesterday_energy_kwh = float(
+                data.get(
+                    "yesterday_energy_kwh",
+                    0.0,
                 )
+            )
+
+            if (
+                stored_date == today
+                and stored_schema_version != SCHEMA_VERSION
+            ):
+                self.date = today
+                self._reset_today()
+
+                log(
+                    "Grid import data migrated to schema "
+                    f"v{SCHEMA_VERSION}: "
+                    "old current-day estimate discarded; "
+                    "today starts from 0 kWh"
+                )
+
+                self.save()
+
+            elif stored_date == today:
+                self.date = stored_date
+
+                if "house_energy_kwh" in data:
+                    self.house_energy_kwh = float(
+                        data.get("house_energy_kwh", 0.0)
+                    )
+                    self.battery_energy_kwh = float(
+                        data.get("battery_energy_kwh", 0.0)
+                    )
+                else:
+                    # Migration from the older single-total format.
+                    self.house_energy_kwh = float(
+                        data.get("daily_energy_kwh", 0.0)
+                    )
+                    self.battery_energy_kwh = 0.0
+
                 self.current_power_w = float(
                     data.get("current_power_w", 0.0)
                 )
-                self.last_saved_energy_kwh = (
+
+                self.sub_active = bool(
+                    data.get("sub_active", False)
+                )
+                self.sub_start_soc = self._optional_float(
+                    data.get("sub_start_soc")
+                )
+                self.sub_max_soc = self._optional_float(
+                    data.get("sub_max_soc")
+                )
+                self.sub_battery_accounted_kwh = float(
+                    data.get(
+                        "sub_battery_accounted_kwh",
+                        0.0,
+                    )
+                )
+
+                self.last_saved_total_kwh = (
                     self.daily_energy_kwh
                 )
 
                 log(
                     "Grid import loaded: "
-                    f"{self.daily_energy_kwh:.3f} kWh "
-                    f"for {self.date}"
+                    f"today={self.daily_energy_kwh:.3f} kWh, "
+                    f"yesterday="
+                    f"{self.yesterday_energy_kwh:.3f} kWh"
                 )
 
             else:
+                completed_total = float(
+                    data.get(
+                        "house_energy_kwh",
+                        data.get("daily_energy_kwh", 0.0),
+                    )
+                ) + float(
+                    data.get("battery_energy_kwh", 0.0)
+                )
+
+                if stored_date:
+                    self.yesterday_energy_kwh = completed_total
+
                 self.date = today
-                self.daily_energy_kwh = 0.0
-                self.current_power_w = 0.0
-                self.last_saved_energy_kwh = 0.0
+                self._reset_today()
 
                 log(
                     "Grid import started for new day: "
-                    f"{self.date}"
+                    f"{self.date}; "
+                    f"yesterday="
+                    f"{self.yesterday_energy_kwh:.3f} kWh"
                 )
 
                 self.save()
@@ -72,7 +163,16 @@ class GridImportService:
 
     def save(self):
         data = {
+            "schema_version": SCHEMA_VERSION,
             "date": self.date,
+            "house_energy_kwh": round(
+                self.house_energy_kwh,
+                6,
+            ),
+            "battery_energy_kwh": round(
+                self.battery_energy_kwh,
+                6,
+            ),
             "daily_energy_kwh": round(
                 self.daily_energy_kwh,
                 6,
@@ -80,6 +180,17 @@ class GridImportService:
             "current_power_w": round(
                 self.current_power_w,
                 1,
+            ),
+            "yesterday_energy_kwh": round(
+                self.yesterday_energy_kwh,
+                6,
+            ),
+            "sub_active": self.sub_active,
+            "sub_start_soc": self.sub_start_soc,
+            "sub_max_soc": self.sub_max_soc,
+            "sub_battery_accounted_kwh": round(
+                self.sub_battery_accounted_kwh,
+                6,
             ),
             "timestamp": int(time.time()),
         }
@@ -93,7 +204,7 @@ class GridImportService:
                 )
             )
 
-            self.last_saved_energy_kwh = (
+            self.last_saved_total_kwh = (
                 self.daily_energy_kwh
             )
 
@@ -105,87 +216,141 @@ class GridImportService:
 
     def update(
         self,
+        *,
         operating_mode,
         output_power_w,
-        pv_power_w,
-        battery_voltage_v,
-        battery_charging_current_a,
-        battery_discharge_current_a,
+        battery_soc,
     ):
-        self._check_new_day()
-
-        values = (
-            output_power_w,
-            pv_power_w,
-            battery_voltage_v,
-            battery_charging_current_a,
-            battery_discharge_current_a,
-        )
-
-        if any(value is None for value in values):
+        if not self._valid_number(output_power_w):
+            self.current_power_w = 0.0
             self.last_update_monotonic = None
             return False
 
-        try:
-            output_power_w = float(output_power_w)
-            pv_power_w = float(pv_power_w)
-            battery_voltage_v = float(
-                battery_voltage_v
-            )
-            battery_charging_current_a = float(
-                battery_charging_current_a
-            )
-            battery_discharge_current_a = float(
-                battery_discharge_current_a
-            )
-
-        except (TypeError, ValueError):
+        if not self._valid_number(battery_soc):
+            self.current_power_w = 0.0
             self.last_update_monotonic = None
             return False
 
-        battery_charging_power_w = (
-            battery_voltage_v
-            * battery_charging_current_a
+        output_power_w = max(
+            0.0,
+            float(output_power_w),
+        )
+        battery_soc = float(battery_soc)
+
+        is_sub = operating_mode in SUB_OPERATING_MODES
+
+        self._check_new_day(
+            battery_soc=battery_soc,
+            is_sub=is_sub,
         )
 
-        battery_discharging_power_w = (
-            battery_voltage_v
-            * battery_discharge_current_a
-        )
-
+        # During startup/transition, do not destroy a persisted
+        # active SUB interval until the operating mode is known.
         if operating_mode in {
-            "hybrid_charging",
-            "panic",
+            "unknown",
+            "transitioning",
         }:
-            estimated_grid_power_w = (
-                output_power_w
-                + battery_charging_power_w
-            )
+            self.current_power_w = 0.0
+            self.last_update_monotonic = None
+            return True
 
-        elif operating_mode == "hybrid_grid_hold":
-            estimated_grid_power_w = output_power_w
+        if not is_sub:
+            if self.sub_active:
+                log(
+                    "Grid import accounting stopped: "
+                    f"mode={operating_mode}, "
+                    f"today={self.daily_energy_kwh:.3f} kWh"
+                )
 
-        else:
-            estimated_grid_power_w = (
-                output_power_w
-                + battery_charging_power_w
-                - battery_discharging_power_w
-                - pv_power_w
-            )
+            self._stop_sub_interval()
+            self.current_power_w = 0.0
+            self.last_update_monotonic = None
+            self._save_if_needed(force=True)
+            return True
 
-            if estimated_grid_power_w < SOLAR_NOISE_FLOOR_W:
-                estimated_grid_power_w = 0.0
+        if not self.sub_active:
+            self._start_sub_interval(battery_soc)
 
         self.current_power_w = round(
-            max(0.0, estimated_grid_power_w),
+            output_power_w,
             1,
         )
 
+        self._update_battery_energy(battery_soc)
+        self._integrate_house_energy()
+        self._save_if_needed()
+
+        return True
+
+    def _start_sub_interval(self, battery_soc):
+        self.sub_active = True
+        self.sub_start_soc = battery_soc
+        self.sub_max_soc = battery_soc
+        self.sub_battery_accounted_kwh = 0.0
+        self.last_update_monotonic = None
+
+        log(
+            "Grid import accounting started: "
+            f"SUB interval, SOC={battery_soc:.1f}%"
+        )
+
+        self.save()
+
+    def _stop_sub_interval(self):
+        self.sub_active = False
+        self.sub_start_soc = None
+        self.sub_max_soc = None
+        self.sub_battery_accounted_kwh = 0.0
+        self.last_update_monotonic = None
+
+    def _update_battery_energy(self, battery_soc):
+        if self.sub_start_soc is None:
+            self.sub_start_soc = battery_soc
+
+        if (
+            self.sub_max_soc is None
+            or battery_soc > self.sub_max_soc
+        ):
+            self.sub_max_soc = battery_soc
+
+        soc_gain = max(
+            0.0,
+            self.sub_max_soc - self.sub_start_soc,
+        )
+
+        interval_battery_energy_kwh = (
+            BATTERY_CAPACITY_KWH
+            * soc_gain
+            / 100.0
+        )
+
+        new_battery_energy_kwh = max(
+            0.0,
+            interval_battery_energy_kwh
+            - self.sub_battery_accounted_kwh,
+        )
+
+        if new_battery_energy_kwh <= 0:
+            return
+
+        self.battery_energy_kwh += new_battery_energy_kwh
+        self.sub_battery_accounted_kwh = (
+            interval_battery_energy_kwh
+        )
+
+        log(
+            "Grid import battery contribution: "
+            f"SOC gain={soc_gain:.1f}%, "
+            f"energy="
+            f"{interval_battery_energy_kwh:.3f} kWh"
+        )
+
+    def _integrate_house_energy(self):
         now_monotonic = time.monotonic()
 
         if self.last_update_monotonic is None:
             self.last_update_monotonic = now_monotonic
-            return True
+            return
 
         elapsed_seconds = (
             now_monotonic
@@ -195,7 +360,7 @@ class GridImportService:
         self.last_update_monotonic = now_monotonic
 
         if elapsed_seconds <= 0 or elapsed_seconds > 60:
-            return True
+            return
 
         energy_increment_kwh = (
             self.current_power_w
@@ -203,38 +368,58 @@ class GridImportService:
             / 3_600_000
         )
 
-        self.daily_energy_kwh += (
-            energy_increment_kwh
-        )
+        self.house_energy_kwh += energy_increment_kwh
 
-        if (
-            self.daily_energy_kwh
-            - self.last_saved_energy_kwh
-            >= 0.001
-        ):
-            self.save()
-
-        return True
-
-    def _check_new_day(self):
+    def _check_new_day(
+        self,
+        *,
+        battery_soc,
+        is_sub,
+    ):
         today = datetime.now().strftime("%Y-%m-%d")
 
         if today == self.date:
             return
 
+        completed_total = self.daily_energy_kwh
+
         log(
             "Grid import day completed: "
-            f"{self.date}="
-            f"{self.daily_energy_kwh:.3f} kWh"
+            f"{self.date}={completed_total:.3f} kWh"
         )
 
+        self.yesterday_energy_kwh = completed_total
         self.date = today
-        self.daily_energy_kwh = 0.0
-        self.current_power_w = 0.0
-        self.last_update_monotonic = None
-        self.last_saved_energy_kwh = 0.0
+        self._reset_today()
 
-        self.save()
+        if is_sub:
+            self._start_sub_interval(battery_soc)
+        else:
+            self.save()
+
+    def _reset_today(self):
+        self.house_energy_kwh = 0.0
+        self.battery_energy_kwh = 0.0
+        self.current_power_w = 0.0
+
+        self.sub_active = False
+        self.sub_start_soc = None
+        self.sub_max_soc = None
+        self.sub_battery_accounted_kwh = 0.0
+
+        self.last_update_monotonic = None
+        self.last_saved_total_kwh = 0.0
+
+    def _save_if_needed(self, force=False):
+        if (
+            force
+            or (
+                self.daily_energy_kwh
+                - self.last_saved_total_kwh
+                >= 0.001
+            )
+        ):
+            self.save()
 
     def mqtt_values(self):
         return {
@@ -246,4 +431,29 @@ class GridImportService:
                 self.daily_energy_kwh,
                 3,
             ),
+            "grid_import_yesterday_estimated": round(
+                self.yesterday_energy_kwh,
+                3,
+            ),
         }
+
+    @staticmethod
+    def _valid_number(value):
+        if value is None:
+            return False
+
+        try:
+            float(value)
+            return True
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def _optional_float(value):
+        if value is None:
+            return None
+
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None

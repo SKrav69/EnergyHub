@@ -99,7 +99,6 @@ Current decision inputs include:
 - Battery SOC;
 - Grid Confidence;
 - Grid Availability history;
-- PV Power;
 - Solar Forecast Today;
 - Solar Forecast Tomorrow;
 - Daily House Consumption;
@@ -161,22 +160,23 @@ Decision:
 No Action
 
 Reason:
-PV power is still sufficient: 453 W >= 200 W.
+Grid Confidence is normal; automatic Panic is not required.
 ```
 
 ---
 
 # Operating Strategies
 
-Current EnergyHub operating strategies are:
+Current EnergyHub 1.0 operating strategies are:
 
 ```text
 Solar
 Hybrid Charging
 Hybrid Grid Hold
 Panic
-Away
 ```
+
+Away Mode is not part of the final EnergyHub 1.0 operating strategy model. Its original concept is deferred to EnergyHub 1.1 for redesign as part of Smart Heating and flexible-load architecture.
 
 Additional temporary states include:
 
@@ -299,13 +299,17 @@ Purpose:
 - use cheap night tariff energy;
 - build sufficient battery reserve for the following day.
 
-Grid Import during this phase is estimated as:
+Grid Import accounting is active during this SUB interval.
+
+The current estimator combines:
 
 ```text
-House Load
+House Energy Supplied During SUB
 +
-Battery Charging Power
+Positive Battery SOC Gain × Nominal Battery Capacity
 ```
+
+The current nominal battery capacity is 16 kWh.
 
 ---
 
@@ -341,11 +345,9 @@ Hybrid Grid Hold
 Solar
 ```
 
-Grid Import during Grid Hold is estimated as:
+Grid Import accounting remains active during Grid Hold because Setting 01 remains SUB.
 
-```text
-House Load
-```
+House energy accumulated during the SUB interval is combined with positive battery SOC gain when calculating the estimated Grid Import total.
 
 ---
 
@@ -390,27 +392,25 @@ Between 12:00 and 23:50
 
 Evaluation is skipped when the current strategy is not appropriate for automatic Panic entry.
 
-Common prerequisites:
+Evaluation order:
 
 ```text
-PV < 200 W
-
-AND
-
-Forecast Today
-<
-Previous Daily House Consumption × 1.20
+1. Autopilot enabled
+2. Current time is between 12:00 and 23:50
+3. Current Operating Mode is Solar
+4. Evaluate Grid Confidence
+5. Evaluate Battery SOC threshold
+6. Compare Solar Forecast Today with Previous Daily Consumption × 1.20
 ```
 
 Current Grid Confidence branches:
 
-## Risk
+## Risk or Panic
 
 ```text
-Grid Confidence = risk
-PV < 200 W
-Forecast Today < Previous Consumption × 1.20
+Grid Confidence = risk or panic
 SOC < 80%
+Forecast Today < Previous Consumption × 1.20
 ```
 
 Result:
@@ -423,9 +423,8 @@ Panic Target → 95%
 
 ```text
 Grid Confidence = unstable
-PV < 200 W
-Forecast Today < Previous Consumption × 1.20
 SOC < 50%
+Forecast Today < Previous Consumption × 1.20
 ```
 
 Result:
@@ -440,49 +439,30 @@ Example:
 
 ```text
 status=no_action
-reason=PV power is still sufficient: 453 W >= 200 W
+reason=Grid confidence=normal; automatic Panic is not required
 ```
 
 ---
 
-# Away Strategy
+# Away and Smart Heating
 
-Away Mode allows EnergyHub to use flexible household loads while the house is unoccupied.
+Away Mode is not part of the final EnergyHub 1.0 Decision Engine.
 
-Current v1 behavior controls the first-floor heat pump.
+The original concept mixed:
 
-Start conditions:
+- occupancy;
+- solar-surplus heating;
+- battery reserve;
+- cheap-tariff opportunities;
+- flexible-load control.
 
-```text
-Away Mode ON
-Temperature < 18°C
-SOC > 95%
-PV > 200 W
-```
+This work is deferred to EnergyHub 1.1.
 
-Stop conditions:
+The future goal is a broader Smart Heating and flexible-load architecture rather than a simple Away state.
 
-```text
-Temperature >= 23°C
-OR
-SOC <= 81%
-```
-
-After EnergyHub starts the heat pump, temporary PV fluctuations do not stop it.
-
-Current ownership helper:
-
-```text
-input_boolean.energyhub_away_heat_pump_active
-```
-
-Rule:
+The ownership principle remains valid:
 
 > EnergyHub automatically stops a household load only when EnergyHub previously started it.
-
-Away Mode v1 currently uses Home Assistant automation.
-
-Future versions may move more flexible-load strategy into dedicated EnergyHub decision services.
 
 ---
 
@@ -499,7 +479,6 @@ input_boolean.energyhub_autopilot
 Autopilot is separate from:
 
 - Operating Mode;
-- Away Mode;
 - manual Panic requests.
 
 Architecture:
@@ -539,7 +518,6 @@ Examples:
 
 - Start Panic;
 - request Solar;
-- enable Away Mode;
 - disable Autopilot.
 
 Manual requests still use the normal control architecture.
@@ -559,7 +537,6 @@ solar
 hybrid_charging
 hybrid_grid_hold
 panic
-away
 transitioning
 transition_failed
 unknown
@@ -689,7 +666,18 @@ Current stored daily facts include:
 - House Consumption;
 - Solar Forecast;
 - Solar Surplus Estimated;
-- Grid Availability.
+- Grid Availability;
+- Grid Import Estimated.
+
+Hybrid evaluation data is also retained for explainability:
+
+- final Hybrid decision;
+- decision reason;
+- Battery SOC used;
+- House Consumption used;
+- Battery Refill Required;
+- Total Energy Required;
+- Solar Forecast Tomorrow used.
 
 The Hybrid Decision Engine consumes current and historical energy facts.
 
@@ -1025,7 +1013,7 @@ SBU + OSO
 → Solar
 
 SUB + SNU
-→ Hybrid Charging
+→ Hybrid Charging or Panic; additional context is required
 
 SUB + OSO
 → Hybrid Grid Hold
@@ -1041,20 +1029,20 @@ It should not become another large conditional block in `main.py`.
 
 # Configurable Strategy Parameters
 
-EnergyHub 1.1 should centralize trusted strategy parameters.
+EnergyHub 1.2 should centralize trusted strategy parameters.
 
 Candidates include:
 
+- cheap-tariff start and end times;
 - Hybrid evaluation time;
 - Hybrid target SOC;
 - Hybrid morning exit time;
-- Panic PV threshold;
+- nominal battery capacity;
+- grid charging current;
+- Panic evaluation window;
 - Panic forecast margin;
 - Panic SOC thresholds;
-- Panic target SOC values;
-- Away Mode SOC thresholds;
-- Away Mode temperature thresholds;
-- Away Mode PV threshold.
+- Panic target SOC values.
 
 Architecture:
 
@@ -1191,19 +1179,32 @@ This separation provides:
 
 # Current Development Priorities
 
-The Decision Engine is no longer a future recommendation-only subsystem.
+EnergyHub 1.0 Decision Engine feature development is complete.
 
 Current priorities are:
 
-1. test Grid Import in Solar, Hybrid Charging, and Hybrid Grid Hold;
-2. complete real-world validation of Hybrid behavior;
-3. stabilize Hybrid Decision execution;
-4. reconstruct strategy correctly after restart;
-5. implement Recovery Strategy responsibilities;
-6. improve notification quality;
-7. continue Away Mode development;
-8. centralize configurable strategy parameters for EnergyHub 1.1;
-9. polish dashboards and logs after behavior is stable.
+1. run the system in Autopilot under real household conditions;
+2. perform a full post-1.0 code review;
+3. clean duplicate and obsolete MQTT Discovery entities;
+4. resolve entity naming conflicts such as `*_2`;
+5. verify Grid Import midnight rollover and historical continuity;
+6. validate Hybrid and Panic behavior with real data;
+7. improve restart strategy reconstruction;
+8. redesign and standardize dashboards and charts;
+9. fix bugs discovered during the 1.0 test-drive period.
+
+Future milestone ownership:
+
+```text
+1.1
+→ Smart Loads, Smart Heating / Away rethink, EV charging template, test-drive improvements
+
+1.2
+→ Configurable strategy parameters
+
+1.3
+→ Recovery & Resilience
+```
 
 ---
 

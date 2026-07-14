@@ -71,8 +71,6 @@ Current EnergyHub-specific Home Assistant helpers include:
 
 ```text
 input_boolean.energyhub_autopilot
-input_boolean.energyhub_away_mode
-input_boolean.energyhub_away_heat_pump_active
 input_number.energyhub_daily_solar_surplus_estimated
 input_number.input_number_floor3_heat_pump_timer_hours
 timer.floor_3_heat_pump_auto_off
@@ -103,34 +101,21 @@ sensor.energyhub_autopilot_status
 Autopilot is separate from:
 
 - Operating Mode;
-- Away Mode;
 - manual strategy requests.
 
 Disabling Autopilot does not disable monitoring, telemetry, history, or health evaluation.
 
 ---
 
-# Away Mode Helpers
+# Deferred Smart Load Helpers
 
-User control:
+The original EnergyHub 1.0 Away Mode helpers and automation were removed from the active 1.0 architecture.
 
-```text
-input_boolean.energyhub_away_mode
-```
+Away / Smart Heating is deferred to EnergyHub 1.1 for redesign as part of a broader flexible-load architecture.
 
-Ownership helper:
+The ownership principle remains valid:
 
-```text
-input_boolean.energyhub_away_heat_pump_active
-```
-
-The ownership helper records whether EnergyHub started the first-floor heat pump.
-
-Rule:
-
-> EnergyHub may automatically stop the heat pump only when EnergyHub previously started it.
-
-This prevents EnergyHub from stopping a heat pump that the user started manually.
+> EnergyHub should automatically stop a household load only when EnergyHub previously started it.
 
 ---
 
@@ -206,26 +191,21 @@ Displays the remaining time until automatic switch-off.
 
 # Current EnergyHub Automations
 
-Current EnergyHub-related Home Assistant automations include:
-
-```text
-EnergyHub - Daily Energy Balance Snapshot
-EnergyHub - Floor 3 Heat Pump Auto-Off
-EnergyHub - Hybrid Schedule
-EnergyHub - Mode Notifications
-EnergyHub - Publish Autopilot State
-EnergyHub - Publish Daily Summary Inputs
-EnergyHub - Restore Mode After Restart
-EnergyHub - Away Mode Heat Pump
-```
-
-Some automation names may retain older wording while the architecture evolves.
-
 The authoritative current automation configuration is stored in:
 
 ```text
 homeassistant/live/config/automations.yaml
 ```
+
+Current EnergyHub integration responsibilities include:
+
+- publishing Autopilot state;
+- publishing Daily Summary and decision inputs;
+- requesting Hybrid evaluation at 23:50;
+- restoring Solar at 07:00 when Autopilot is enabled;
+- restoring / requesting mode handling after restart;
+- delivering EnergyHub notification events;
+- selected household automations such as Floor 3 Heat Pump Auto-Off.
 
 This document describes architecture and responsibilities.
 
@@ -233,31 +213,22 @@ It should not duplicate the complete automation YAML.
 
 ---
 
-# Daily Solar Surplus Snapshot
+# Daily Summary and Hybrid Schedule
 
-The daily snapshot runs before midnight.
-
-Current snapshot time:
+The final nightly sequence is:
 
 ```text
+23:49
+→ Home Assistant publishes fresh decision inputs
+
 23:50
+→ Home Assistant requests Hybrid evaluation
+
+23:51
+→ Daily Summary refreshes the final daily snapshot
 ```
 
-Purpose:
-
-Store Daily Solar Surplus Estimated before daily source sensors reset.
-
-Architecture:
-
-```text
-Solcast Forecast Today
-        +
-Daily House Consumption
-        ↓
-Daily Solar Surplus Estimated
-        ↓
-Home Assistant Helper
-```
+This ordering ensures that the Hybrid Decision Engine evaluates current Home Assistant inputs before the final daily history snapshot is completed.
 
 ---
 
@@ -342,7 +313,7 @@ sensor.energyhub_daily_house_consumption
 sensor.energyhub_daily_solar_forecast
 sensor.energyhub_daily_solar_surplus_estimated
 sensor.energyhub_daily_grid_availability
-sensor.energyhub_daily_grid_import_estimated
+sensor.energyhub_daily_grid_import_estimated_2
 ```
 
 Dashboards should prefer EnergyHub Daily Summary entities when displaying completed historical daily statistics.
@@ -369,7 +340,6 @@ solar
 hybrid_charging
 hybrid_grid_hold
 panic
-away
 transitioning
 transition_failed
 unknown
@@ -444,38 +414,35 @@ DECISION_ENGINE.md
 
 ---
 
-# Away Mode Integration
+# Hybrid Decision Entities
 
-Away Mode v1 controls the first-floor heat pump.
+EnergyHub publishes retained explainable Hybrid evaluation data.
 
-Start conditions:
-
-```text
-Away Mode ON
-Temperature < 18°C
-SOC > 95%
-PV > 200 W
-```
-
-Stop conditions:
+Current entities include:
 
 ```text
-Temperature >= 23°C
-OR
-SOC <= 81%
+sensor.energyhub_hybrid_decision
+sensor.energyhub_hybrid_decision_reason
+sensor.energyhub_hybrid_evaluated_soc
+sensor.energyhub_hybrid_evaluated_consumption
+sensor.energyhub_hybrid_battery_refill_required
+sensor.energyhub_hybrid_total_energy_required
+sensor.energyhub_hybrid_evaluated_forecast
 ```
 
-After EnergyHub starts the heat pump, temporary PV fluctuations do not stop it.
+These entities allow Home Assistant to show both the final decision and the exact values used during the most recent Hybrid evaluation.
 
-Current ownership helper:
+Home Assistant displays these values but does not duplicate the Hybrid decision formula.
 
-```text
-input_boolean.energyhub_away_heat_pump_active
-```
+---
 
-Current Away Mode v1 logic remains implemented through Home Assistant automation.
+# Smart Heating / Away Integration
 
-Future flexible-load decision logic may move into dedicated EnergyHub services when justified.
+Away Mode is not part of the final EnergyHub 1.0 architecture.
+
+The original implementation was deferred after design review showed that occupancy, comfort, solar surplus, cheap-tariff use, and battery reserve should be handled through a broader Smart Heating / flexible-load architecture.
+
+This work is planned for EnergyHub 1.1.
 
 ---
 
@@ -497,72 +464,64 @@ This is a household automation and remains an appropriate Home Assistant respons
 
 The PowMr inverter does not expose a reliable accumulated Grid Import counter.
 
-EnergyHub publishes estimated values:
+EnergyHub therefore estimates Grid Import while SUB-based strategies are active.
+
+Current entities include:
 
 ```text
 sensor.energyhub_grid_import_power_estimated
 sensor.energyhub_daily_grid_import_estimated
+sensor.energyhub_grid_import_yesterday_estimated
+sensor.energyhub_daily_grid_import_estimated_2
 ```
 
-The estimation is mode-aware.
+The `_2` Daily Summary entity is a known temporary naming conflict scheduled for cleanup.
 
-## Solar
+## Accounting Window
+
+Accounting starts when EnergyHub enters a SUB-based strategy:
+
+- Hybrid Charging;
+- Hybrid Grid Hold;
+- Panic.
+
+Accounting stops after EnergyHub returns to Solar/SBU.
+
+## Current Calculation
 
 ```text
 Grid Import
 =
-House Load
+House Energy Supplied During SUB
 +
-Battery Charging Power
--
-Battery Discharging Power
--
-PV Power
+Positive Battery SOC Gain × Nominal Battery Capacity
 ```
 
-Small Solar-mode estimates below the configured noise threshold are treated as zero.
-
-Current threshold:
+Current nominal battery capacity:
 
 ```text
-50 W
+16 kWh
 ```
 
-## Hybrid Charging
+Battery contribution uses positive SOC gain relative to the start of the SUB interval.
+
+Temporary SOC drops do not inflate the estimate.
+
+EnergyHub persists current-day Grid Import state and publishes yesterday and Daily Summary values for Home Assistant history.
+
+Current persistence schema:
 
 ```text
-Grid Import
-=
-House Load
-+
-Battery Charging Power
+schema_version = 2
 ```
 
-## Hybrid Grid Hold
+The schema migration discarded incompatible current-day values produced by the previous estimator.
 
-```text
-Grid Import
-=
-House Load
-```
-
-## Panic
-
-```text
-Grid Import
-=
-House Load
-+
-Battery Charging Power
-```
-
-EnergyHub integrates estimated Grid Import power over time and persists the daily result.
-
-Daily Grid Import Estimated is:
+Daily Grid Import Estimated remains:
 
 - informational;
 - useful for historical comparison;
-- useful for dashboard testing;
+- useful for dashboard analysis;
 - not billing-grade.
 
 ---
@@ -601,27 +560,13 @@ Routine telemetry and expected no-action evaluations should normally remain in l
 
 ---
 
-# Developer Dashboard Architecture
+# Dashboard Architecture
 
-The Developer Dashboard separates current operational state from analytical information.
+Current EnergyHub dashboards separate operational state, decision intelligence, and historical energy results.
 
-Architecture:
+The current dashboard set is functional but scheduled for a complete visual and usability review after EnergyHub 1.0.
 
-```text
-EnergyHub Status
-→ What is happening now?
-
-EnergyHub Intelligence
-→ What does EnergyHub know?
-```
-
-The current dashboard is intentionally optimized for development and testing.
-
-Visual polishing is deferred until behavior is stable.
-
----
-
-# EnergyHub Status Dashboard
+## EnergyHub Status
 
 Purpose:
 
@@ -629,113 +574,83 @@ Purpose:
 What is happening now?
 ```
 
-Current controls and information include:
+Current information includes:
 
-- EnergyHub Autopilot;
-- Start Panic button;
-- Away Mode control;
-- Operating Mode visualization;
+- Autopilot;
+- Operating Mode;
 - Operating Mode reason;
 - Output Source Priority;
 - Charger Source Priority;
 - Communication;
 - Battery SOC;
-- Battery Charging Current;
-- Battery Discharge Current;
 - House Load;
 - PV1 Power;
 - Grid Voltage;
-- Grid Import Power Estimated;
-- Daily Grid Import Estimated.
+- Grid Import information;
+- manual developer controls.
 
-Operating Mode is displayed prominently.
+Operating Mode is displayed prominently with strategy-specific icons.
 
-Current visualization includes:
-
-```text
-☀️ SOLAR
-🌙 HYBRID CHARGING
-🌙 HYBRID GRID HOLD
-🔴 PANIC
-🏠 AWAY
-🔄 TRANSITIONING
-❌ TRANSITION FAILED
-⚪ UNKNOWN
-```
-
----
-
-# EnergyHub Intelligence Dashboard
+## EnergyHub Decision Logic
 
 Purpose:
 
 ```text
-What does EnergyHub know?
+Why did EnergyHub make this decision?
 ```
 
-Current information includes:
+Current sections include:
+
+### Grid Situation
 
 - Grid Confidence;
-- Grid Available last 24h;
-- Grid Available last 48h;
-- Consumption Yesterday;
-- Solar Surplus Yesterday;
+- Grid Available — Last 24 Hours;
+- Grid Available — Last 48 Hours.
+
+### Night Tariff Decision
+
+- final Hybrid decision;
+- Battery SOC used;
+- House Consumption used;
+- Battery Energy to Full;
+- Total Energy Required;
+- Solar Forecast Tomorrow;
+- Decision Reason.
+
+### Panic Decision
+
+- Solar Forecast Today;
+- Previous Daily Consumption;
+- Panic Decision;
+- Panic Decision Reason.
+
+The main decision lines are visually emphasized while detailed evaluation inputs remain available below them.
+
+## Energy Balance Chart
+
+The current 7-day chart displays:
+
+- House Consumption;
+- Solar Surplus Estimated;
+- Grid Import;
+- Grid Availability.
+
+Live header values include:
+
+- Consumption Today;
+- Grid Import Today;
 - Forecast Today;
 - Forecast Tomorrow.
 
-Grid Confidence is displayed prominently:
+Known temporary issue:
 
 ```text
-🟢 NORMAL
-🟡 UNSTABLE
-🟠 RISK
-🔴 PANIC
-⚪ UNKNOWN
+sensor.energyhub_daily_grid_import_estimated_2
 ```
 
-Current Grid Confidence thresholds:
+is currently used for Daily Summary history until entity cleanup is completed.
 
-```text
-90–100% → normal
-60–90%  → unstable
-30–60%  → risk
-0–30%    → panic
-```
-
-Decision explanations may be added or reorganized during later dashboard polishing.
-
----
-
-# Energy Balance Chart
-
-The 7-day Energy Balance chart displays completed historical values.
-
-Historical series:
-
-```text
-sensor.energyhub_daily_house_consumption
-sensor.energyhub_daily_solar_surplus_estimated
-sensor.energyhub_daily_grid_import_estimated
-sensor.energyhub_daily_grid_availability
-```
-
-Live header values:
-
-```text
-sensor.powmr_10_2m_daily_house_consumption
-sensor.solcast_pv_forecast_forecast_today
-sensor.solcast_pv_forecast_forecast_tomorrow
-```
-
-The distinction is intentional:
-
-```text
-Chart
-→ completed historical values
-
-Header
-→ live current-day values
-```
+The chart and all dashboards are scheduled for redesign and standardization during the post-1.0 cleanup session.
 
 ---
 
@@ -796,25 +711,24 @@ Selected current Home Assistant configuration is versioned in Git.
 
 ```text
 homeassistant/
-├── live/
-│   ├── config/
-│   │   ├── automations.yaml
-│   │   ├── configuration.yaml
-│   │   ├── scenes.yaml
-│   │   └── scripts.yaml
-│   └── storage/
-│       ├── input_boolean
-│       ├── input_number
-│       ├── timer
-│       ├── lovelace.dashboard_powmr1
-│       ├── lovelace_dashboards
-│       └── lovelace_resources
-└── legacy/
+└── live/
+    ├── config/
+    │   ├── automations.yaml
+    │   ├── configuration.yaml
+    │   ├── scenes.yaml
+    │   └── scripts.yaml
+    └── storage/
+        ├── input_boolean
+        ├── input_number
+        ├── timer
+        ├── lovelace.dashboard_powmr1
+        ├── lovelace_dashboards
+        └── lovelace_resources
 ```
 
 `live/` contains selected configuration synchronized from the current Home Assistant installation.
 
-`legacy/` contains older manually maintained files retained for reference.
+The old manually maintained `homeassistant/legacy/` structure was removed from Git.
 
 The complete Home Assistant `.storage` directory must never be committed.
 

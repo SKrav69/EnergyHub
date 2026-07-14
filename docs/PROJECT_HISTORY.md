@@ -166,7 +166,6 @@ Protective daytime charging based on:
 
 - Grid Confidence;
 - current SOC;
-- low PV production;
 - insufficient solar forecast.
 
 Targets:
@@ -174,15 +173,21 @@ Targets:
 - 80% for unstable-grid conditions;
 - 95% for higher-risk conditions.
 
-## Away Mode v1
+## Away Mode Exploration
 
-Manual Away Mode with autonomous first-floor heat-pump control based on:
+An initial Away Mode concept explored autonomous heat-pump control based on occupancy, temperature, Battery SOC, and available solar energy.
 
-- temperature;
-- Battery SOC;
-- available PV power.
+Real design review showed that the concept mixed several separate concerns:
 
-An ownership helper ensures EnergyHub only switches off loads that it previously started.
+- occupancy;
+- comfort;
+- solar-surplus use;
+- battery reserve;
+- cheap-tariff opportunities;
+- flexible-load control.
+
+Away Mode was therefore deferred from EnergyHub 1.0 and moved to EnergyHub 1.1 for redesign as part of a broader Smart Heating and flexible-load architecture.
+
 
 Architectural result:
 
@@ -200,11 +205,13 @@ Major milestones:
 
 - estimated current Grid Import power;
 - estimated Daily Grid Import energy;
-- Solar-mode power-balance estimation;
-- Hybrid/Panic charging estimation;
-- Hybrid Grid Hold estimation;
+- accounting tied to SUB operating intervals;
+- house energy accumulation during SUB;
+- battery energy estimation from positive SOC gain and nominal battery capacity;
+- support for Hybrid Charging, Hybrid Grid Hold, and Panic;
 - persistent daily state;
-- midnight reset;
+- schema migration after estimator redesign;
+- yesterday and Daily Summary history;
 - chart and dashboard integration.
 
 Architectural result:
@@ -220,7 +227,6 @@ The Home Assistant side of EnergyHub was integrated into the repository workflow
 Major milestones:
 
 - `homeassistant/live/` for current synchronized configuration;
-- `homeassistant/legacy/` for historical manual exports;
 - `tools/dev/sync-from-ha.ps1`;
 - selected Home Assistant YAML synchronization;
 - selected `.storage` synchronization;
@@ -243,20 +249,37 @@ Architectural result:
 
 ---
 
-# Current Era — EnergyHub 1.0 Stabilization
+# Current Era — EnergyHub 1.0 Test Drive and Cleanup
 
-The current goal is to stabilize and polish the first autonomous EnergyHub release.
+EnergyHub 1.0 feature development is complete.
+
+The project has entered a real-system test-drive and cleanup phase.
+
+Final 1.0 milestones included:
+
+- complete Solar, Hybrid Charging, Hybrid Grid Hold, and Panic strategies;
+- Autopilot execution;
+- explainable Hybrid Decision data;
+- corrected Panic evaluation order;
+- removal of the current-PV threshold from Panic decisions;
+- automatic Hybrid and Panic notifications;
+- redesigned Grid Import accounting;
+- Home Assistant synchronization workflow;
+- removal of obsolete manually maintained `homeassistant/legacy/` files;
+- removal of the duplicate Autopilot helper;
+- Decision Logic dashboard improvements.
 
 Current priorities:
 
-- validate autonomous behavior over real household operation;
+- run Autopilot under real household conditions;
+- perform a full post-implementation code review;
+- clean entity IDs such as `*_2`;
+- remove obsolete retained MQTT Discovery entities;
+- verify Grid Import midnight rollover and historical continuity;
 - improve restart strategy reconstruction;
-- complete bounded recovery behavior;
-- expose remaining Hybrid Decision telemetry;
-- polish dashboards and naming;
-- remove duplicate helpers;
-- investigate persistent inverter `eeprom_fault`;
-- align all project documentation.
+- redesign and standardize charts and dashboards;
+- fix bugs discovered during the test-drive period;
+- investigate persistent inverter `eeprom_fault`.
 
 EnergyHub 1.0 success means:
 
@@ -266,20 +289,66 @@ EnergyHub 1.0 success means:
 
 # Next Era — EnergyHub 1.1
 
-EnergyHub 1.1 will make household strategy parameters configurable without editing code.
+EnergyHub 1.1 will focus on Smart Loads and improvements discovered during the EnergyHub 1.0 test drive.
+
+Planned direction:
+
+- bug fixes;
+- cosmetic and usability improvements;
+- dashboard and chart improvements;
+- Smart Heating architecture;
+- Away Mode rethink;
+- solar-surplus heating;
+- cheap-tariff heating;
+- EV charging template;
+- flexible-load architecture.
+
+Architectural goal:
+
+> Extend autonomous energy management from the inverter and battery to useful household loads without compromising comfort, resilience, or explainability.
+
+---
+
+# EnergyHub 1.2 — Configurable EnergyHub
+
+EnergyHub 1.2 will make trusted household strategy parameters configurable without editing code or YAML.
 
 Planned examples:
 
+- cheap electricity tariff window;
+- Panic evaluation window;
+- nominal battery capacity;
+- grid charging current;
 - Hybrid target SOC;
-- Hybrid schedule;
 - Panic thresholds and targets;
-- Away Mode SOC thresholds;
-- Away Mode temperature thresholds;
-- Away Mode PV threshold.
+- selectable Panic profiles;
+- other safe Decision Engine variables.
 
 Architectural goal:
 
 > Separate hardware technical limits from configurable household strategy.
+
+---
+
+# EnergyHub 1.3 — Recovery & Resilience
+
+EnergyHub 1.3 will focus on safe and predictable recovery from real system failures.
+
+Planned direction:
+
+- MQTT recovery;
+- network recovery;
+- serial communication recovery;
+- inverter communication recovery;
+- `mpp-solar` timeout handling;
+- Home Assistant connectivity recovery;
+- bounded retries;
+- safe-state reconstruction;
+- external heartbeat and watchdog strategy.
+
+Architectural goal:
+
+> Detect failures, recover automatically only when safe, keep recovery bounded, and preserve understandable system state.
 
 ---
 
@@ -362,6 +431,12 @@ Explainable Decisions
 Validated Automation
     ↓
 Autonomous Home Operation
+    ↓
+Smart Household Loads
+    ↓
+Configurable Strategy
+    ↓
+Recovery & Resilience
     ↓
 Whole-Home Energy Optimization
 ```

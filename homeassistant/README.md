@@ -6,10 +6,9 @@ This directory stores the Home Assistant configuration used by EnergyHub.
 
 ```text
 homeassistant/
-├── live/
-│   ├── config/
-│   └── storage/
-└── legacy/
+└── live/
+    ├── config/
+    └── storage/
 ```
 
 ## `live/`
@@ -18,13 +17,13 @@ The `live/` directory contains the current Home Assistant configuration synchron
 
 It is the source of truth for:
 
-- automations;
-- scripts;
-- scenes;
-- selected helpers;
-- selected timers;
-- the Solar / EnergyHub dashboard;
-- Lovelace dashboard registration and resources.
+- automations
+- scripts
+- scenes
+- selected helpers
+- selected timers
+- the Solar / EnergyHub dashboard
+- Lovelace dashboard registration and resources
 
 ### `live/config/`
 
@@ -58,15 +57,9 @@ Current files:
 - `lovelace_dashboards`
 - `lovelace_resources`
 
-Only reviewed files are synchronized. The complete `.storage` directory must never be copied into the repository.
+Only reviewed files are synchronized.
 
-## `legacy/`
-
-The `legacy/` directory contains older manually exported YAML files.
-
-These files are kept for reference only and may not match the current Home Assistant configuration.
-
-Do not update `legacy/` after every Home Assistant change.
+The complete `.storage` directory must never be copied into the repository.
 
 ## Synchronizing from Home Assistant
 
@@ -80,20 +73,14 @@ The script copies the approved Home Assistant files into `homeassistant/live/`.
 
 Then:
 
-1. Review changes in GitHub Desktop or with `git diff`.
+1. Review the synchronized changes in GitHub Desktop.
 2. Check that no secrets or private data were added.
 3. Commit the reviewed changes.
+4. Push the commit to GitHub.
 
-The script does not commit or push automatically.
+The synchronization script does not commit or push automatically.
 
 ## Add-on Deployment
-
-EnergyHub add-on code is edited in the Windows repository and deployed in the opposite direction:
-
-```text
-Windows repository
-→ Home Assistant add-on directory
-```
 
 Use:
 
@@ -101,34 +88,20 @@ Use:
 .\tools\dev\deploy-to-ha.ps1
 ```
 
-The add-on deployment script does not copy Home Assistant dashboards or automations.
+This script deploys the EnergyHub add-on code from the Windows repository to Home Assistant. It does not copy Home Assistant dashboards, automations, scripts, or helpers.
 
-## Security
-
-Never commit:
-
-- `secrets.yaml`;
-- authentication files;
-- API tokens;
-- passwords;
-- private URLs;
-- `home-assistant_v2.db`;
-- log files;
-- unrestricted `.storage` contents;
-- mobile-app registration data;
-- device and entity registries unless explicitly reviewed.
-
-The repository is public, so every synchronized file must be reviewed before committing.
-
-## Current Workflow
+## Development Workflow
 
 ### EnergyHub Python code
 
 ```text
 Edit in VS Code
 → deploy to Home Assistant
+→ rebuild & restart add-on
 → test
+→ review in GitHub Desktop
 → commit
+→ push
 ```
 
 ### Home Assistant configuration
@@ -136,6 +109,20 @@ Edit in VS Code
 ```text
 Edit in Home Assistant
 → run sync-from-ha.ps1
-→ review Git changes
+→ review in GitHub Desktop
 → commit
+→ push
 ```
+
+## Security
+
+Never commit secrets, authentication files, tokens, passwords, private URLs, Home Assistant databases, logs, or unreviewed `.storage` files.
+
+Review every synchronized file before committing because this repository is public.
+
+## Source of Truth
+
+- Windows Git repository → EnergyHub add-on source code
+- Running Home Assistant → Home Assistant configuration
+
+The synchronization scripts keep both represented in Git for version control, review, backup, and documentation.

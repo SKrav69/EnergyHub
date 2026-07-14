@@ -185,16 +185,22 @@ def publish_grid_import_discovery(client):
 
     sensors = {
         "grid_import_power_estimated": (
-            "Grid Import Power Estimated",
+            "Grid-Supplied House Power Estimated",
             "W",
             "power",
             "measurement",
         ),
         "daily_grid_import_estimated": (
-            "Daily Grid Import Estimated",
+            "Grid Import Today Estimated",
             "kWh",
             "energy",
             "total_increasing",
+        ),
+        "grid_import_yesterday_estimated": (
+            "Grid Import Yesterday Estimated",
+            "kWh",
+            "energy",
+            "measurement",
         ),
     }
 
@@ -264,6 +270,12 @@ def publish_daily_summary_discovery(client):
         ),
         "daily_solar_surplus_estimated": (
             "Daily Solar Surplus Estimated",
+            "kWh",
+            "energy",
+            "measurement",
+        ),
+        "daily_grid_import": (
+            "Daily Grid Import Estimated",
             "kWh",
             "energy",
             "measurement",
@@ -639,6 +651,72 @@ def publish_panic_decision_discovery(client):
     )
 
     log("Panic Decision MQTT discovery published")
+
+
+def publish_hybrid_decision(client, hybrid_decision):
+    for key, value in hybrid_decision.mqtt_values().items():
+        client.publish(
+            f"{BASE_TOPIC}/{key}/state",
+            str(value),
+            retain=True,
+        )
+
+
+def publish_hybrid_decision_discovery(client):
+    device = _energyhub_device()
+
+    sensors = {
+        "hybrid_decision": (
+            "Hybrid Decision",
+            None,
+            None,
+            None,
+        ),
+        "hybrid_decision_reason": (
+            "Hybrid Decision Reason",
+            None,
+            None,
+            None,
+        ),
+        "hybrid_evaluated_soc": (
+            "Hybrid Evaluated SOC",
+            "%",
+            "battery",
+            "measurement",
+        ),
+        "hybrid_evaluated_consumption": (
+            "Hybrid Evaluated Consumption",
+            "kWh",
+            "energy",
+            "measurement",
+        ),
+        "hybrid_evaluated_forecast": (
+            "Hybrid Evaluated Forecast",
+            "kWh",
+            "energy",
+            "measurement",
+        ),
+        "hybrid_battery_refill_required": (
+            "Hybrid Battery Refill Required",
+            "kWh",
+            "energy",
+            "measurement",
+        ),
+        "hybrid_total_energy_required": (
+            "Hybrid Total Energy Required",
+            "kWh",
+            "energy",
+            "measurement",
+        ),
+    }
+
+    _publish_sensor_discovery(
+        client,
+        device,
+        sensors,
+    )
+
+    log("Hybrid Decision MQTT discovery published")
 
 
 def publish_notification_event(client, event):

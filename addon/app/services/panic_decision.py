@@ -5,7 +5,6 @@ PANIC_START_TIME = (12, 0)
 PANIC_END_TIME = (23, 50)
 
 FORECAST_SAFETY_FACTOR = 1.20
-MAX_PV_POWER_W = 200
 
 UNSTABLE_TRIGGER_SOC = 50
 UNSTABLE_TARGET_SOC = 80
@@ -25,7 +24,6 @@ class PanicDecisionEngine:
         autopilot_enabled,
         operating_mode,
         grid_confidence,
-        pv_power,
         battery_soc,
         forecast_today,
         consumption_yesterday,
@@ -42,7 +40,11 @@ class PanicDecisionEngine:
         if not self._inside_evaluation_window(current_time):
             return self._result(
                 status="skipped",
-                reason="Outside Panic evaluation window 12:00–23:50",
+                reason=(
+                    "Outside Panic evaluation window "
+                    f"{self._format_time(PANIC_START_TIME)}–"
+                    f"{self._format_time(PANIC_END_TIME)}"
+                ),
             )
 
         if operating_mode in {
@@ -69,13 +71,10 @@ class PanicDecisionEngine:
         if operating_mode != "solar":
             return self._result(
                 status="skipped",
-                reason=f"Operating mode is {operating_mode}, not solar",
-            )
-
-        if not self._valid_number(pv_power):
-            return self._result(
-                status="skipped",
-                reason="Current PV power is unavailable",
+                reason=(
+                    f"Operating mode is {operating_mode}, "
+                    "not Solar"
+                ),
             )
 
         if not self._valid_number(battery_soc):
@@ -96,7 +95,6 @@ class PanicDecisionEngine:
                 reason="Yesterday house consumption is unavailable",
             )
 
-        pv_power = float(pv_power)
         battery_soc = float(battery_soc)
         forecast_today = float(forecast_today)
         consumption_yesterday = float(consumption_yesterday)
@@ -106,74 +104,91 @@ class PanicDecisionEngine:
             * FORECAST_SAFETY_FACTOR
         )
 
-        if pv_power >= MAX_PV_POWER_W:
-            return self._result(
-                status="no_action",
-                reason=(
-                    f"PV power is still sufficient: "
-                    f"{pv_power:.0f} W >= {MAX_PV_POWER_W} W"
-                ),
-            )
-
-        if forecast_today >= conservative_consumption:
-            return self._result(
-                status="no_action",
-                reason=(
-                    f"Forecast is sufficient: "
-                    f"{forecast_today:.2f} kWh >= "
-                    f"{conservative_consumption:.2f} kWh "
-                    "(yesterday consumption +20%)"
-                ),
-            )
-
+        # Decision order:
+        # 1. Evaluation time and operating mode.
+        # 2. Grid quality.
+        # 3. Battery SOC threshold for that grid quality.
+        # 4. Forecast shortage using yesterday's consumption +20%.
         if grid_confidence in {"risk", "panic"}:
-            if battery_soc < RISK_TRIGGER_SOC:
+            if battery_soc >= RISK_TRIGGER_SOC:
                 return self._result(
-                    status="trigger_95",
+                    status="no_action",
                     reason=(
-                        f"Grid confidence={grid_confidence}; "
-                        f"PV={pv_power:.0f} W; "
-                        f"forecast={forecast_today:.2f} kWh; "
-                        f"required={conservative_consumption:.2f} kWh; "
-                        f"SOC={battery_soc:.1f}% < "
-                        f"{RISK_TRIGGER_SOC}%"
+                        f"Grid confidence={grid_confidence}, "
+                        f"but SOC={battery_soc:.1f}% is sufficient "
+                        f"(Panic 95% requires SOC < "
+                        f"{RISK_TRIGGER_SOC}%)"
                     ),
-                    request="panic_95",
-                    target_soc=RISK_TARGET_SOC,
+                )
+
+            if forecast_today >= conservative_consumption:
+                return self._result(
+                    status="no_action",
+                    reason=(
+                        f"Grid confidence={grid_confidence} and "
+                        f"SOC={battery_soc:.1f}% < "
+                        f"{RISK_TRIGGER_SOC}%, but forecast is "
+                        f"sufficient: {forecast_today:.2f} kWh >= "
+                        f"{conservative_consumption:.2f} kWh "
+                        "(yesterday consumption +20%)"
+                    ),
                 )
 
             return self._result(
-                status="no_action",
+                status="trigger_95",
                 reason=(
-                    f"Grid confidence={grid_confidence}, "
-                    f"but SOC={battery_soc:.1f}% is not below "
-                    f"{RISK_TRIGGER_SOC}%"
+                    f"Grid confidence={grid_confidence}; "
+                    f"SOC={battery_soc:.1f}% < "
+                    f"{RISK_TRIGGER_SOC}%; "
+                    f"forecast={forecast_today:.2f} kWh < "
+                    f"required={conservative_consumption:.2f} kWh "
+                    "(yesterday consumption +20%); "
+                    f"activate Panic and charge to "
+                    f"{RISK_TARGET_SOC}%"
                 ),
+                request="panic_95",
+                target_soc=RISK_TARGET_SOC,
             )
 
         if grid_confidence == "unstable":
-            if battery_soc < UNSTABLE_TRIGGER_SOC:
+            if battery_soc >= UNSTABLE_TRIGGER_SOC:
                 return self._result(
-                    status="trigger_80",
+                    status="no_action",
                     reason=(
-                        "Grid confidence=unstable; "
-                        f"PV={pv_power:.0f} W; "
-                        f"forecast={forecast_today:.2f} kWh; "
-                        f"required={conservative_consumption:.2f} kWh; "
-                        f"SOC={battery_soc:.1f}% < "
-                        f"{UNSTABLE_TRIGGER_SOC}%"
+                        "Grid confidence=unstable, "
+                        f"but SOC={battery_soc:.1f}% is sufficient "
+                        f"(Panic 80% requires SOC < "
+                        f"{UNSTABLE_TRIGGER_SOC}%)"
                     ),
-                    request="panic_80",
-                    target_soc=UNSTABLE_TARGET_SOC,
+                )
+
+            if forecast_today >= conservative_consumption:
+                return self._result(
+                    status="no_action",
+                    reason=(
+                        "Grid confidence=unstable and "
+                        f"SOC={battery_soc:.1f}% < "
+                        f"{UNSTABLE_TRIGGER_SOC}%, but forecast is "
+                        f"sufficient: {forecast_today:.2f} kWh >= "
+                        f"{conservative_consumption:.2f} kWh "
+                        "(yesterday consumption +20%)"
+                    ),
                 )
 
             return self._result(
-                status="no_action",
+                status="trigger_80",
                 reason=(
-                    "Grid confidence=unstable, "
-                    f"but SOC={battery_soc:.1f}% is not below "
-                    f"{UNSTABLE_TRIGGER_SOC}%"
+                    "Grid confidence=unstable; "
+                    f"SOC={battery_soc:.1f}% < "
+                    f"{UNSTABLE_TRIGGER_SOC}%; "
+                    f"forecast={forecast_today:.2f} kWh < "
+                    f"required={conservative_consumption:.2f} kWh "
+                    "(yesterday consumption +20%); "
+                    f"activate Panic and charge to "
+                    f"{UNSTABLE_TARGET_SOC}%"
                 ),
+                request="panic_80",
+                target_soc=UNSTABLE_TARGET_SOC,
             )
 
         return self._result(
@@ -225,6 +240,10 @@ class PanicDecisionEngine:
         )
 
         return start_minutes <= minutes_now < end_minutes
+
+    @staticmethod
+    def _format_time(value):
+        return f"{value[0]:02d}:{value[1]:02d}"
 
     @staticmethod
     def _valid_number(value):

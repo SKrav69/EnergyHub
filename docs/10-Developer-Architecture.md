@@ -104,7 +104,7 @@ battery_soc_field: battery_capacity
 
 Protocol-specific implementation details should remain inside EnergyHub code.
 
-Future EnergyHub 1.1 strategy parameters should also have clear ownership and safe bounds.
+Future EnergyHub 1.2 strategy parameters should also have clear ownership and safe bounds.
 
 Examples:
 
@@ -112,7 +112,6 @@ Examples:
 - Hybrid evaluation time;
 - morning exit time;
 - Panic thresholds;
-- Away Mode thresholds.
 
 Technical hardware limits must remain separate from household strategy parameters.
 
@@ -201,6 +200,7 @@ Current responsibilities include publishing:
 - health information;
 - operating mode;
 - inverter settings;
+- Hybrid Decision and evaluation data;
 - Panic Decision;
 - Autopilot state;
 - Daily Summary;
@@ -280,7 +280,8 @@ Current stored values include:
 - House Consumption;
 - Solar Forecast;
 - Solar Surplus Estimated;
-- Grid Availability.
+- Grid Availability;
+- Grid Import Estimated.
 
 The service owns:
 
@@ -373,7 +374,6 @@ Inputs include:
 
 - Operating Mode;
 - Grid Confidence;
-- PV Power;
 - current SOC;
 - current solar forecast;
 - previous Daily House Consumption.
@@ -384,13 +384,18 @@ Current evaluation window:
 12:00–23:50
 ```
 
-Current common conditions:
+Current evaluation order:
 
 ```text
-PV < 200 W
-AND
-Forecast Today < Previous Daily Consumption × 1.20
+1. Autopilot enabled
+2. Current time is inside the evaluation window
+3. Operating Mode is Solar
+4. Evaluate Grid Confidence
+5. Evaluate Battery SOC threshold
+6. Compare Forecast Today with Previous Daily Consumption × 1.20
 ```
+
+Instantaneous PV power is intentionally not used.
 
 The service should produce:
 
@@ -456,7 +461,6 @@ solar
 hybrid_charging
 hybrid_grid_hold
 panic
-away
 transitioning
 transition_failed
 unknown
@@ -483,7 +487,6 @@ Autopilot controls whether automatic inverter strategy execution is allowed.
 Autopilot is separate from:
 
 - Operating Mode;
-- Away Mode;
 - manual Panic control.
 
 When disabled, automatic decision execution should stop and EnergyHub should preserve or restore the defined safe strategy according to policy.
@@ -496,50 +499,44 @@ When disabled, automatic decision execution should stop and EnergyHub should pre
 
 The service owns:
 
-- mode-aware power estimation;
-- integration from power to energy;
+- SUB-interval accounting;
+- house-energy accumulation;
+- battery refill estimation from positive SOC gain;
 - daily accumulation;
-- midnight reset;
 - persistence;
+- day-boundary finalization;
+- yesterday history;
 - MQTT publication inputs.
 
-Current logic:
+Accounting starts when EnergyHub enters:
 
-Solar:
+- Hybrid Charging;
+- Hybrid Grid Hold;
+- Panic.
 
-```text
-Grid Import
-=
-House Load
-+ Battery Charging Power
-- Battery Discharging Power
-- PV Power
-```
+Accounting stops after EnergyHub returns to Solar/SBU.
 
-Hybrid Charging / Panic:
+Current calculation:
 
 ```text
 Grid Import
 =
-House Load
+House Energy Supplied During SUB
 +
-Battery Charging Power
+Positive Battery SOC Gain × Nominal Battery Capacity
 ```
 
-Hybrid Grid Hold:
+Current nominal battery capacity:
 
 ```text
-Grid Import
-=
-House Load
+16 kWh
 ```
 
-Solar-mode estimates below 50 W are treated as zero.
+Temporary SOC drops do not inflate the estimate.
 
-The service must avoid integrating:
+The persistence format is schema-versioned so incompatible estimator state is not silently reused after architecture changes.
 
-- invalid telemetry;
-- excessive telemetry gaps.
+The service must avoid accounting from invalid telemetry.
 
 Grid Import is informational rather than billing-grade.
 
@@ -599,45 +596,19 @@ The responsibility boundary should remain explicit.
 
 ---
 
-# Away Mode
+# Smart Heating and Flexible Loads
 
-Away Mode v1 currently uses Home Assistant automation for first-floor heat-pump control.
+The original Away Mode v1 implementation is not part of the final EnergyHub 1.0 architecture.
 
-Inputs:
+Design review showed that occupancy, comfort, solar-surplus use, cheap-tariff opportunities, battery reserve, and flexible-load control require a broader architecture.
 
-- Away Mode helper;
-- room temperature;
-- Battery SOC;
-- PV Power.
+This work is deferred to EnergyHub 1.1.
 
-Start conditions:
-
-```text
-Away Mode ON
-Temperature < 18°C
-SOC > 95%
-PV > 200 W
-```
-
-Stop conditions:
-
-```text
-Temperature >= 23°C
-OR
-SOC <= 81%
-```
-
-EnergyHub/Home Assistant tracks load ownership using:
-
-```text
-input_boolean.energyhub_away_heat_pump_active
-```
-
-Rule:
+The ownership principle remains:
 
 > An automation should automatically stop a load only when that automation previously started it.
 
-This ownership principle should be reused for future flexible loads.
+This principle should be reused for future Smart Heating, EV charging, and other flexible loads.
 
 ---
 
@@ -647,31 +618,24 @@ Current repository structure:
 
 ```text
 homeassistant/
-├── live/
-│   ├── config/
-│   │   ├── automations.yaml
-│   │   ├── configuration.yaml
-│   │   ├── scenes.yaml
-│   │   └── scripts.yaml
-│   └── storage/
-│       ├── input_boolean
-│       ├── input_number
-│       ├── timer
-│       ├── lovelace.dashboard_powmr1
-│       ├── lovelace_dashboards
-│       └── lovelace_resources
-└── legacy/
+└── live/
+    ├── config/
+    │   ├── automations.yaml
+    │   ├── configuration.yaml
+    │   ├── scenes.yaml
+    │   └── scripts.yaml
+    └── storage/
+        ├── input_boolean
+        ├── input_number
+        ├── timer
+        ├── lovelace.dashboard_powmr1
+        ├── lovelace_dashboards
+        └── lovelace_resources
 ```
 
-## `live/`
+`live/` contains selected current Home Assistant configuration synchronized from the real installation.
 
-Contains selected current Home Assistant configuration synchronized from the real installation.
-
-## `legacy/`
-
-Contains older manually exported files retained for reference.
-
-The `legacy/` tree is not the authoritative current configuration.
+The old manually maintained `homeassistant/legacy/` tree was removed from Git.
 
 ---
 
@@ -768,7 +732,7 @@ Good:
 ```text
 Automatic Panic evaluation:
 status=no_action
-reason=PV power is still sufficient: 453 W >= 200 W
+reason=Grid confidence=normal; automatic Panic is not required
 ```
 
 Good:
@@ -825,7 +789,7 @@ Current recovery-related behavior includes:
 - transition failure state;
 - safe Solar restoration.
 
-Future recovery services should own:
+EnergyHub 1.3 recovery services should own:
 
 - failure classification;
 - bounded recovery attempts;
@@ -849,7 +813,7 @@ A high-priority future improvement is reconstructing EnergyHub strategy from ver
 Intended mapping:
 
 ```text
-SUB + SNU → Hybrid Charging
+SUB + SNU → Hybrid Charging or Panic; additional context is required
 SUB + OSO → Hybrid Grid Hold
 SBU + OSO → Solar
 ```
@@ -860,20 +824,23 @@ It should not become another large conditional block inside `main.py`.
 
 ---
 
-# EnergyHub 1.1 Configurable Parameters
+# EnergyHub 1.2 Configurable Parameters
 
 Future strategy parameters should be centralized.
 
 Candidates include:
 
+- cheap-tariff start and end times;
 - Hybrid evaluation time;
 - Hybrid target SOC;
 - Hybrid morning exit time;
-- Panic thresholds;
+- nominal battery capacity;
+- grid charging current;
+- Panic evaluation window;
+- Panic forecast margin;
+- Panic SOC thresholds;
 - Panic targets;
-- Away Mode SOC thresholds;
-- Away Mode temperature thresholds;
-- Away Mode PV threshold.
+- selectable Panic profiles.
 
 Recommended direction:
 
@@ -890,6 +857,8 @@ Decision Services
 Decision services should receive validated configuration.
 
 They should not independently read arbitrary Home Assistant helpers throughout the codebase.
+
+Technical hardware limits must remain separate from household strategy parameters.
 
 ---
 
@@ -921,15 +890,19 @@ Test:
 
 Test:
 
-- Solar balance;
-- Solar noise floor;
+- SUB interval start;
 - Hybrid Charging;
 - Panic;
-- Grid Hold;
-- daily reset;
+- Hybrid Grid Hold;
+- return to Solar;
+- house-energy accumulation;
+- positive SOC gain;
+- temporary SOC decrease;
+- day-boundary finalization;
+- yesterday history;
 - restart persistence;
-- invalid telemetry;
-- long telemetry gaps.
+- persistence schema migration;
+- invalid telemetry.
 
 ## Inverter Controller Tests
 
@@ -1070,8 +1043,7 @@ EnergyHub/
 │       ├── recovery/
 │       └── utils/
 ├── homeassistant/
-│   ├── live/
-│   └── legacy/
+│   └── live/
 ├── tools/
 │   ├── dev/
 │   ├── diagnostics/

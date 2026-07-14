@@ -221,7 +221,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - input_boolean.name_energyhub_autopilot
+    - input_boolean.energyhub_autopilot
   - trigger: homeassistant
     event: start
   actions:
@@ -230,7 +230,7 @@
   - action: mqtt.publish
     data:
       topic: energyhub/input/ha/autopilot
-      payload: '{{ states(''input_boolean.name_energyhub_autopilot'') }}'
+      payload: '{{ states(''input_boolean.energyhub_autopilot'') }}'
       retain: true
   mode: restart
 - id: '1783705009942'
@@ -261,7 +261,7 @@
         id:
         - restore_solar
       - condition: state
-        entity_id: input_boolean.name_energyhub_autopilot
+        entity_id: input_boolean.energyhub_autopilot
         state: 'on'
       sequence:
       - action: mqtt.publish
@@ -269,6 +269,12 @@
           topic: energyhub/input/ha/inverter_mode
           payload: solar
           retain: false
+    default:
+    - action: mqtt.publish
+      data:
+        topic: energyhub/input/ha/inverter_mode
+        payload: evaluate_hybrid
+        retain: false
   mode: single
 - id: '1783705227008'
   alias: EnergyHub - Restore Mode After Restart
@@ -279,7 +285,7 @@
     to: unknown
   conditions:
   - condition: state
-    entity_id: input_boolean.name_energyhub_autopilot
+    entity_id: input_boolean.energyhub_autopilot
     state: 'on'
   actions:
   - delay:

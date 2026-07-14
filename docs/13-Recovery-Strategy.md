@@ -4,6 +4,20 @@
 
 ---
 
+# Milestone
+
+```text
+EnergyHub 1.3 — Recovery & Resilience
+```
+
+Status:
+
+```text
+Architecture defined; implementation deferred to EnergyHub 1.3
+```
+
+---
+
 # Purpose
 
 This document defines how EnergyHub should react when communication, software, Home Assistant, inverter telemetry, or operating-state problems occur.
@@ -455,7 +469,7 @@ Reconstruct Operating Mode
 Intended mapping:
 
 ```text
-SUB + SNU → Hybrid Charging
+SUB + SNU → Hybrid Charging or Panic; additional context is required
 SUB + OSO → Hybrid Grid Hold
 SBU + OSO → Solar
 ```
@@ -472,7 +486,7 @@ Report state
 Apply safe recovery only if policy allows
 ```
 
-This is a high-priority stabilization item.
+This is an important restart-recovery item and part of the EnergyHub 1.3 Recovery & Resilience milestone.
 
 ---
 

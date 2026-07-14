@@ -160,7 +160,7 @@
                     },
                     "plotOptions": {
                       "bar": {
-                        "columnWidth": "55%"
+                        "columnWidth": "75%"
                       }
                     },
                     "legend": {
@@ -168,15 +168,19 @@
                     },
                     "xaxis": {
                       "type": "datetime",
+                      "tickAmount": 7,
                       "labels": {
-                        "format": "dd MMM"
+                        "datetimeUTC": false,
+                        "format": "dd.MM",
+                        "rotate": 0,
+                        "hideOverlappingLabels": false
                       }
                     }
                   },
                   "series": [
                     {
                       "entity": "sensor.energyhub_daily_house_consumption",
-                      "name": "Consumption Yesterday",
+                      "name": "Consumption",
                       "type": "column",
                       "color": "#2980b9",
                       "float_precision": 1,
@@ -191,7 +195,7 @@
                     },
                     {
                       "entity": "sensor.energyhub_daily_solar_surplus_estimated",
-                      "name": "Solar Surplus Estimated",
+                      "name": "Unused Solar Estimated",
                       "type": "column",
                       "color": "#e67e22",
                       "float_precision": 1,
@@ -206,7 +210,7 @@
                     },
                     {
                       "entity": "sensor.energyhub_daily_grid_import_estimated",
-                      "name": "Grid Import Estimated",
+                      "name": "Grid Import Calculated",
                       "type": "column",
                       "color": "#8e44ad",
                       "float_precision": 2,
@@ -426,7 +430,7 @@
                   "cards": [
                     {
                       "type": "tile",
-                      "entity": "input_boolean.name_energyhub_autopilot",
+                      "entity": "input_boolean.energyhub_autopilot",
                       "name": "Autopilot",
                       "icon": "mdi:robot",
                       "color": "green",
@@ -541,73 +545,104 @@
                   "heading": "New section"
                 },
                 {
-                  "type": "entities",
-                  "title": "Decision Inputs",
-                  "show_header_toggle": false,
-                  "entities": [
+                  "type": "vertical-stack",
+                  "cards": [
                     {
-                      "entity": "sensor.energyhub_grid_confidence",
-                      "name": "Grid Confidence"
+                      "type": "markdown",
+                      "title": "EnergyHub Decision Logic",
+                      "content": "{% set grid = states('sensor.energyhub_grid_confidence') | lower %} {% set mode = states('sensor.energyhub_operating_mode') | lower %} {% set night = states('sensor.energyhub_hybrid_decision') | lower %}\n{% set grid_icon = {\n  'normal': '🟢',\n  'unstable': '🟡',\n  'risk': '🟠',\n  'panic': '🔴'\n}.get(grid, '⚪') %}\n{% set mode_icon = {\n  'solar': '☀️',\n  'hybrid_charging': '🌙',\n  'hybrid_grid_hold': '🌙',\n  'panic': '🚨',\n  'transitioning': '🔄',\n  'transition_failed': '❌',\n  'unknown': '❓'\n}.get(mode, '❓') %}\n{% set mode_name = {\n  'solar': 'SOLAR',\n  'hybrid_charging': 'HYBRID CHARGING',\n  'hybrid_grid_hold': 'HYBRID GRID HOLD',\n  'panic': 'PANIC',\n  'transitioning': 'TRANSITIONING',\n  'transition_failed': 'TRANSITION FAILED',\n  'unknown': 'UNKNOWN'\n}.get(mode, mode | upper) %}\n{% set night_icon = {\n  'solar': '☀️',\n  'hybrid': '🌙',\n  'skipped': '⏭️',\n  'not_evaluated': '❓',\n  'unknown': '❓'\n}.get(night, '❓') %}\n{% set night_name = {\n  'solar': 'SOLAR',\n  'hybrid': 'HYBRID',\n  'skipped': 'SKIPPED',\n  'not_evaluated': 'NOT EVALUATED',\n  'unknown': 'UNKNOWN'\n}.get(night, night | upper) %}\n**Grid Confidence:** {{ grid_icon }} **{{ grid | upper }}**\n**Current Mode:** {{ mode_icon }} **{{ mode_name }}**\n**Night Tariff Decision:** {{ night_icon }} **{{ night_name }}**"
                     },
                     {
-                      "entity": "sensor.energyhub_grid_availability_24h",
-                      "name": "Grid Availability 24h"
-                    },
-                    {
-                      "entity": "sensor.energyhub_grid_available_48h",
-                      "name": "Grid Available 48h"
-                    },
-                    {
-                      "type": "section",
-                      "label": "Hybrid Decision Inputs"
-                    },
-                    {
-                      "entity": "sensor.powmr_10_2m_battery_soc",
-                      "name": "Current Battery SOC"
-                    },
-                    {
-                      "entity": "sensor.powmr_10_2m_daily_house_consumption",
-                      "name": "Consumption Today"
-                    },
-                    {
-                      "entity": "sensor.solcast_pv_forecast_forecast_tomorrow",
-                      "name": "Solar Forecast Tomorrow"
-                    },
-                    {
-                      "type": "section",
-                      "label": "Panic Decision Inputs"
-                    },
-                    {
-                      "entity": "sensor.powmr_10_2m_pv1_power",
-                      "name": "Current Solar Power"
-                    },
-                    {
-                      "entity": "sensor.solcast_pv_forecast_forecast_today",
-                      "name": "Solar Forecast Today"
-                    },
-                    {
-                      "entity": "sensor.energyhub_daily_house_consumption",
-                      "name": "Previous Daily Consumption"
-                    },
-                    {
-                      "entity": "sensor.energyhub_panic_decision",
-                      "name": "Panic Decision"
-                    },
-                    {
-                      "entity": "sensor.energyhub_panic_decision_reason",
-                      "name": "Panic Decision Reason"
-                    },
-                    {
-                      "type": "section",
-                      "label": "Energy Results"
-                    },
-                    {
-                      "entity": "sensor.energyhub_daily_grid_import_estimated",
-                      "name": "Grid Import Today Estimated"
-                    },
-                    {
-                      "entity": "sensor.energyhub_grid_import_power_estimated",
-                      "name": "Grid Import Power Estimated"
+                      "type": "entities",
+                      "show_header_toggle": false,
+                      "entities": [
+                        {
+                          "type": "section",
+                          "label": "Grid Situation"
+                        },
+                        {
+                          "entity": "sensor.energyhub_grid_confidence",
+                          "name": "Grid Confidence",
+                          "icon": "mdi:transmission-tower"
+                        },
+                        {
+                          "entity": "sensor.energyhub_grid_available_24h",
+                          "name": "Grid Available — Last 24 Hours",
+                          "icon": "mdi:clock-outline"
+                        },
+                        {
+                          "entity": "sensor.energyhub_grid_available_48h",
+                          "name": "Grid Available — Last 48 Hours",
+                          "icon": "mdi:clock-outline"
+                        },
+                        {
+                          "type": "section",
+                          "label": "Night Tariff Decision — 23:50"
+                        },
+                        {
+                          "entity": "sensor.energyhub_hybrid_decision",
+                          "name": "Final Decision",
+                          "icon": "mdi:weather-sunset"
+                        },
+                        {
+                          "type": "section",
+                          "label": "Evaluation Data"
+                        },
+                        {
+                          "entity": "sensor.energyhub_hybrid_evaluated_soc",
+                          "name": "Battery SOC",
+                          "icon": "mdi:battery"
+                        },
+                        {
+                          "entity": "sensor.energyhub_hybrid_evaluated_consumption",
+                          "name": "House Consumption Today",
+                          "icon": "mdi:home-lightning-bolt-outline"
+                        },
+                        {
+                          "entity": "sensor.energyhub_hybrid_battery_refill_required",
+                          "name": "Battery Energy to Full",
+                          "icon": "mdi:battery-plus-outline"
+                        },
+                        {
+                          "entity": "sensor.energyhub_hybrid_total_energy_required",
+                          "name": "Total Energy Required",
+                          "icon": "mdi:calculator-variant-outline"
+                        },
+                        {
+                          "entity": "sensor.energyhub_hybrid_evaluated_forecast",
+                          "name": "Solar Forecast Tomorrow",
+                          "icon": "mdi:weather-sunny"
+                        },
+                        {
+                          "entity": "sensor.energyhub_hybrid_decision_reason",
+                          "name": "Decision Reason",
+                          "icon": "mdi:information-outline"
+                        },
+                        {
+                          "type": "section",
+                          "label": "Current Panic Decision"
+                        },
+                        {
+                          "entity": "sensor.solcast_pv_forecast_forecast_today",
+                          "name": "Solar Forecast Today",
+                          "icon": "mdi:weather-sunny"
+                        },
+                        {
+                          "entity": "sensor.energyhub_daily_house_consumption",
+                          "name": "Yesterday House Consumption",
+                          "icon": "mdi:home-lightning-bolt-outline"
+                        },
+                        {
+                          "entity": "sensor.energyhub_panic_decision",
+                          "name": "Panic Decision",
+                          "icon": "mdi:alert-octagon-outline"
+                        },
+                        {
+                          "entity": "sensor.energyhub_panic_decision_reason",
+                          "name": "Panic Decision Reason",
+                          "icon": "mdi:information-outline"
+                        }
+                      ]
                     }
                   ]
                 }

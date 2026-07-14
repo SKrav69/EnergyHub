@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-07-14
+
+### EnergyHub 1.0 Completion
+
+- Completed Solar, Hybrid Charging, Hybrid Grid Hold, and Panic operating strategies.
+- Added explainable Hybrid Decision sensors and evaluation data.
+- Cleaned Panic Decision logic: evaluation window → Grid Confidence → SOC → forecast versus expected consumption.
+- Removed PV power threshold from Panic decisions.
+- Added automatic Hybrid and Panic notifications.
+- Redesigned Grid Import accounting around SUB intervals: house energy plus positive battery SOC gain based on 16 kWh capacity.
+- Added persistent live, yesterday, and Daily Summary Grid Import values.
+- Added Grid Import schema v2 migration to discard incompatible current-day estimates.
+- Updated Decision Logic dashboard with Grid Confidence, Hybrid decision reasoning, evaluation inputs, and Panic decision reasoning.
+- Added Home Assistant reverse synchronization workflow with `sync-from-ha.ps1`.
+- Removed obsolete manually maintained `homeassistant/legacy` files from the repository.
+- Removed duplicate Autopilot helper configuration.
+- Deferred Away Mode for redesign in EnergyHub 1.1.
+- Defined roadmap: 1.1 Smart Loads & test-drive improvements, 1.2 Configurable EnergyHub, 1.3 Recovery & Resilience.
+- EnergyHub 1.0 feature development is complete and enters test-drive, cleanup, and review.
+
+### Known Cleanup Items
+
+- Resolve Home Assistant entity naming conflicts such as `*_2`.
+- Clean obsolete MQTT Discovery entities.
+- Verify Grid Import midnight rollover with real operating data.
+- Review code after the 1.0 implementation sprint.
+- Standardize and improve dashboards and charts.
+
+---
+
 ## 2026-07-13
 
 ### Added
