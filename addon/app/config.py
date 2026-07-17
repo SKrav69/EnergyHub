@@ -6,7 +6,16 @@ OPTIONS_FILE = Path("/data/options.json")
 LAST_FILE = Path("/data/energy_hub_powmr_last.json")
 
 BASE_TOPIC = "powmr"
-AVAILABILITY_TOPIC = f"{BASE_TOPIC}/status"
+
+# Raw inverter telemetry availability. This becomes offline when the
+# inverter cannot be read, while the EnergyHub process may still be
+# running and publishing diagnostics.
+INVERTER_AVAILABILITY_TOPIC = f"{BASE_TOPIC}/status"
+
+# EnergyHub process availability. Intelligence and diagnostic entities
+# use this topic so they remain available during inverter communication
+# failures and can explain the failure.
+ENERGYHUB_AVAILABILITY_TOPIC = "energyhub/status"
 
 
 SENSORS = {

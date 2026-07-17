@@ -3,11 +3,29 @@ class SystemHealthMonitor:
         self.status = "unknown"
         self.reason = "not_checked"
 
-    def update(self, health, battery_health, telemetry_freshness, inverter_health):
-        communication = getattr(health, "status", "unknown")
-        battery = getattr(battery_health, "status", "unknown")
-        telemetry = getattr(telemetry_freshness, "status", "unknown")
-        inverter = getattr(inverter_health, "status", "unknown")
+    def update(
+        self,
+        health,
+        battery_health,
+        telemetry_freshness,
+        inverter_health,
+    ):
+        communication = health.state
+        battery = getattr(
+            battery_health,
+            "status",
+            "unknown",
+        )
+        telemetry = getattr(
+            telemetry_freshness,
+            "status",
+            "unknown",
+        )
+        inverter = getattr(
+            inverter_health,
+            "status",
+            "unknown",
+        )
 
         if communication in ["offline", "unavailable"]:
             self.status = "unavailable"
@@ -16,14 +34,30 @@ class SystemHealthMonitor:
 
         warnings = []
 
+        if communication in [
+            "starting",
+            "recovering",
+            "stale",
+            "unknown",
+        ]:
+            warnings.append(
+                f"communication_{communication}"
+            )
+
         if battery == "warning":
-            warnings.append("battery_health_warning")
+            warnings.append(
+                "battery_health_warning"
+            )
 
         if telemetry in ["warning", "stale"]:
-            warnings.append("telemetry_freshness_warning")
+            warnings.append(
+                "telemetry_freshness_warning"
+            )
 
         if inverter == "warning":
-            warnings.append("inverter_health_warning")
+            warnings.append(
+                "inverter_health_warning"
+            )
 
         if warnings:
             self.status = "warning"

@@ -2,7 +2,12 @@ import json
 
 import paho.mqtt.client as mqtt
 
-from app.config import AVAILABILITY_TOPIC, BASE_TOPIC, SENSORS
+from app.config import (
+    BASE_TOPIC,
+    ENERGYHUB_AVAILABILITY_TOPIC,
+    INVERTER_AVAILABILITY_TOPIC,
+    SENSORS,
+)
 from app.utils.logger import log
 
 
@@ -19,7 +24,7 @@ def make_client(options):
         options["mqtt_password"],
     )
     client.will_set(
-        AVAILABILITY_TOPIC,
+        ENERGYHUB_AVAILABILITY_TOPIC,
         "offline",
         retain=True,
     )
@@ -41,7 +46,11 @@ def publish_discovery(client, device_name):
             "name": name,
             "unique_id": unique_id,
             "state_topic": f"{BASE_TOPIC}/{key}/state",
-            "availability_topic": AVAILABILITY_TOPIC,
+            "availability": [
+                {"topic": ENERGYHUB_AVAILABILITY_TOPIC},
+                {"topic": INVERTER_AVAILABILITY_TOPIC},
+            ],
+            "availability_mode": "all",
             "device": device,
         }
 
@@ -84,7 +93,7 @@ def publish_values(client, data, previous):
         published += 1
 
     client.publish(
-        AVAILABILITY_TOPIC,
+        INVERTER_AVAILABILITY_TOPIC,
         "online",
         retain=True,
     )
@@ -558,7 +567,7 @@ def _publish_sensor_discovery(client, device, sensors):
             "name": name,
             "unique_id": f"energyhub_{key}",
             "state_topic": f"{BASE_TOPIC}/{key}/state",
-            "availability_topic": AVAILABILITY_TOPIC,
+            "availability_topic": ENERGYHUB_AVAILABILITY_TOPIC,
             "device": device,
         }
 

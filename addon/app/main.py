@@ -4,7 +4,11 @@ import time
 import traceback
 
 from app.adapters.powmr import PowMrLocalAdapter
-from app.config import AVAILABILITY_TOPIC, load_options
+from app.config import (
+    ENERGYHUB_AVAILABILITY_TOPIC,
+    INVERTER_AVAILABILITY_TOPIC,
+    load_options,
+)
 from app.mqtt.publisher import (
     make_client,
     publish_autopilot,
@@ -416,6 +420,21 @@ def main():
                 "energyhub/input/ha/#"
             )
 
+            client.publish(
+                ENERGYHUB_AVAILABILITY_TOPIC,
+                "online",
+                retain=True,
+            )
+
+            # A new or restored MQTT connection does not prove that the
+            # inverter is readable. The next valid telemetry response
+            # will publish inverter availability as online.
+            client.publish(
+                INVERTER_AVAILABILITY_TOPIC,
+                "offline",
+                retain=True,
+            )
+
         else:
             log(
                 "MQTT connection failed "
@@ -545,8 +564,16 @@ def main():
     )
 
     client.publish(
-        AVAILABILITY_TOPIC,
+        ENERGYHUB_AVAILABILITY_TOPIC,
         "online",
+        retain=True,
+    )
+
+    # Raw inverter telemetry remains unavailable until the first valid
+    # telemetry response confirms communication.
+    client.publish(
+        INVERTER_AVAILABILITY_TOPIC,
+        "offline",
         retain=True,
     )
 
@@ -644,7 +671,7 @@ def main():
                 publish_all_health()
 
                 client.publish(
-                    AVAILABILITY_TOPIC,
+                    INVERTER_AVAILABILITY_TOPIC,
                     "offline",
                     retain=True,
                 )
@@ -746,7 +773,7 @@ def main():
                 publish_all_health()
 
                 client.publish(
-                    AVAILABILITY_TOPIC,
+                    INVERTER_AVAILABILITY_TOPIC,
                     "online",
                     retain=True,
                 )
@@ -784,7 +811,7 @@ def main():
             log("ERROR: mpp-solar timeout")
 
             client.publish(
-                AVAILABILITY_TOPIC,
+                INVERTER_AVAILABILITY_TOPIC,
                 "offline",
                 retain=True,
             )
@@ -811,7 +838,7 @@ def main():
             log(traceback.format_exc())
 
             client.publish(
-                AVAILABILITY_TOPIC,
+                INVERTER_AVAILABILITY_TOPIC,
                 "offline",
                 retain=True,
             )
