@@ -210,7 +210,7 @@
                     },
                     {
                       "entity": "sensor.energyhub_daily_grid_import_estimated",
-                      "name": "Grid Import Calculated",
+                      "name": "Grid Import Today",
                       "type": "column",
                       "color": "#8e44ad",
                       "float_precision": 2,
@@ -244,16 +244,6 @@
                       "name": "Consumption Today",
                       "color": "#3498db",
                       "float_precision": 1,
-                      "show": {
-                        "in_chart": false,
-                        "in_header": true
-                      }
-                    },
-                    {
-                      "entity": "sensor.energyhub_daily_grid_import_estimated",
-                      "name": "Grid Import Today",
-                      "color": "#8e44ad",
-                      "float_precision": 2,
                       "show": {
                         "in_chart": false,
                         "in_header": true

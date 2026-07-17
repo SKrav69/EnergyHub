@@ -1,91 +1,155 @@
 - id: '1781793005552'
-  alias: Battery Lamp Dynamic Status
-  description: Battery lamp indicates SOC and grid status
+  alias: EnergyHub Beacon
+  description: 'Color shows battery reserve. Brightness and animation show the real
+    electrical state. Solid white means EnergyHub telemetry has stopped.
+
+    '
   triggers:
   - trigger: state
-    entity_id: sensor.powmr_10_2m_battery_soc
-  - trigger: state
-    entity_id: sensor.powmr_10_2m_grid_voltage
+    entity_id:
+    - sensor.powmr_10_2m_battery_soc
+    - sensor.powmr_10_2m_grid_voltage
+    - sensor.powmr_10_2m_output_power
+    - sensor.energyhub_output_source_priority
+    - sensor.energyhub_telemetry_freshness
+  - trigger: time_pattern
+    minutes: /1
   - trigger: homeassistant
     event: start
   actions:
   - variables:
-      soc: '{{ states(''sensor.powmr_10_2m_battery_soc'') | float(-1) }}'
-      grid_voltage: '{{ states(''sensor.powmr_10_2m_grid_voltage'') | float(0) }}'
-      grid_ok: '{{ grid_voltage > 50 }}'
-      lamp_color: '{% if soc >= 95 %} [0, 80, 255] {% elif soc >= 80 %} [0, 255, 0]
-        {% elif soc >= 50 %} [255, 220, 0] {% elif soc >= 30 %} [255, 80, 0] {% else
-        %} [128, 0, 32] {% endif %}
+      soc: '{{ states(''sensor.powmr_10_2m_battery_soc'') | float(-1) }}
 
         '
-  - condition: template
-    value_template: '{{ soc > 0 }}'
+      grid_voltage: '{{ states(''sensor.powmr_10_2m_grid_voltage'') | float(0) }}
+
+        '
+      grid_available: '{{ grid_voltage > 50 }}
+
+        '
+      output_source_priority: '{{ states(''sensor.energyhub_output_source_priority'')
+        | upper }}
+
+        '
+      using_grid_intentionally: '{{ output_source_priority == ''SUB'' }}
+
+        '
+      freshness_state: '{{ states(''sensor.energyhub_telemetry_freshness'') | lower
+        }}
+
+        '
+      output_power_age_seconds: "{{\n  as_timestamp(now())\n  -\n  as_timestamp(\n
+        \   states.sensor.powmr_10_2m_output_power.last_reported,\n    0\n  )\n}}\n"
+      telemetry_ok: "{{\n  freshness_state == 'fresh'\n  and output_power_age_seconds
+        < 90\n}}\n"
+      lamp_color: "{% if soc >= 95 %}\n  [0, 80, 255]\n{% elif soc >= 80 %}\n  [0,
+        255, 0]\n{% elif soc >= 50 %}\n  [255, 220, 0]\n{% elif soc >= 30 %}\n  [255,
+        80, 0]\n{% else %}\n  [128, 0, 32]\n{% endif %}\n"
   - choose:
     - conditions:
       - condition: template
-        value_template: '{{ soc <= 30 }}'
+        value_template: '{{ not telemetry_ok }}'
       sequence:
-      - repeat:
-          while:
-          - condition: template
-            value_template: '{{ states(''sensor.powmr_10_2m_battery_soc'') | float(100)
-              <= 30 }}'
-          sequence:
-          - action: light.turn_on
-            target:
-              entity_id: light.colorful_pir_night_light
-            data:
-              brightness_pct: 80
-              rgb_color: '{{ lamp_color }}'
-          - delay: 00:00:03
-          - action: light.turn_off
-            target:
-              entity_id: light.colorful_pir_night_light
-          - delay: 00:00:01
+      - action: light.turn_on
+        target:
+          entity_id: light.colorful_pir_night_light
+        data:
+          brightness_pct: 40
+          rgb_color:
+          - 255
+          - 255
+          - 255
     - conditions:
       - condition: template
-        value_template: '{{ not grid_ok }}'
+        value_template: '{{ telemetry_ok and soc >= 0 and soc < 30 }}
+
+          '
       sequence:
       - repeat:
           while:
           - condition: template
-            value_template: '{{ states(''sensor.powmr_10_2m_grid_voltage'') | float(0)
-              < 50 }}'
+            value_template: "{{\n  states('sensor.powmr_10_2m_battery_soc')\n  | float(100)
+              < 30\n}}\n"
+          - condition: template
+            value_template: "{{\n  states('sensor.energyhub_telemetry_freshness')\n
+              \ | lower == 'fresh'\n  and\n  (\n    as_timestamp(now())\n    -\n    as_timestamp(\n
+              \     states.sensor.powmr_10_2m_output_power.last_reported,\n      0\n
+              \   )\n  ) < 90\n}}\n"
           sequence:
           - action: light.turn_on
             target:
               entity_id: light.colorful_pir_night_light
             data:
-              brightness_pct: 20
-              rgb_color: '{{ lamp_color }}'
-          - delay: 00:00:01
+              brightness_pct: 10
+              rgb_color:
+              - 128
+              - 0
+              - 32
+          - delay: 00:00:02
           - action: light.turn_on
             target:
               entity_id: light.colorful_pir_night_light
             data:
               brightness_pct: 50
-              rgb_color: '{{ lamp_color }}'
-          - delay: 00:00:01
-          - action: light.turn_on
-            target:
-              entity_id: light.colorful_pir_night_light
-            data:
-              brightness_pct: 80
-              rgb_color: '{{ lamp_color }}'
-          - delay: 00:00:01
-          - action: light.turn_on
-            target:
-              entity_id: light.colorful_pir_night_light
-            data:
-              brightness_pct: 50
-              rgb_color: '{{ lamp_color }}'
-          - delay: 00:00:01
+              rgb_color:
+              - 128
+              - 0
+              - 32
+          - delay: 00:00:02
+    - conditions:
+      - condition: template
+        value_template: '{{ telemetry_ok and soc >= 30 and not grid_available }}
+
+          '
+      sequence:
+      - repeat:
+          while:
+          - condition: template
+            value_template: "{{\n  states('sensor.powmr_10_2m_grid_voltage')\n  |
+              float(0) <= 50\n}}\n"
+          - condition: template
+            value_template: "{{\n  states('sensor.powmr_10_2m_battery_soc')\n  | float(100)
+              >= 30\n}}\n"
+          - condition: template
+            value_template: "{{\n  states('sensor.energyhub_telemetry_freshness')\n
+              \ | lower == 'fresh'\n  and\n  (\n    as_timestamp(now())\n    -\n    as_timestamp(\n
+              \     states.sensor.powmr_10_2m_output_power.last_reported,\n      0\n
+              \   )\n  ) < 90\n}}\n"
+          sequence:
+          - repeat:
+              for_each:
+              - 10
+              - 30
+              - 50
+              - 30
+              sequence:
+              - action: light.turn_on
+                target:
+                  entity_id: light.colorful_pir_night_light
+                data:
+                  brightness_pct: '{{ repeat.item }}'
+                  rgb_color: '{{ lamp_color }}'
+              - delay: 00:00:01
+    - conditions:
+      - condition: template
+        value_template: '{{ telemetry_ok and using_grid_intentionally }}
+
+          '
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id: light.colorful_pir_night_light
+        data:
+          brightness_pct: 100
+          rgb_color: '{{ lamp_color }}'
     default:
+    - condition: template
+      value_template: '{{ telemetry_ok and soc >= 0 }}'
     - action: light.turn_on
       target:
         entity_id: light.colorful_pir_night_light
       data:
-        brightness_pct: 50
+        brightness_pct: 40
         rgb_color: '{{ lamp_color }}'
   mode: restart
 - id: '1783102330433'
