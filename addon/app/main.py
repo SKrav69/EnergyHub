@@ -129,6 +129,13 @@ def main():
         history,
         grid_import,
     )
+
+    # Live decision inputs are kept separate from Daily Summary snapshot
+    # inputs. Solcast updates these values throughout the day, while the
+    # Daily Summary service should continue to receive only its scheduled
+    # snapshot publications.
+    decision_inputs = {}
+
     hybrid_decision = HybridDecisionEngine()
     panic_decision = PanicDecisionEngine()
 
@@ -296,8 +303,11 @@ def main():
             )
 
     def evaluate_hybrid(state):
-        forecast_tomorrow = daily_summary.inputs.get(
-            "solar_forecast_tomorrow"
+        forecast_tomorrow = decision_inputs.get(
+            "solar_forecast_tomorrow",
+            daily_summary.inputs.get(
+                "solar_forecast_tomorrow"
+            ),
         )
 
         consumption_today = daily_summary.inputs.get(
@@ -353,8 +363,11 @@ def main():
     def evaluate_panic(state):
         grid_confidence = stability.level()
 
-        forecast_today = daily_summary.inputs.get(
-            "solar_forecast_today"
+        forecast_today = decision_inputs.get(
+            "solar_forecast_today",
+            daily_summary.inputs.get(
+                "solar_forecast_today"
+            ),
         )
 
         consumption_yesterday = daily_summary.inputs.get(
@@ -473,6 +486,47 @@ def main():
             requested_mode = payload.strip().lower()
             queue_mode_request(requested_mode)
             return
+
+        live_forecast_keys = {
+            "solar_forecast_today_live": (
+                "solar_forecast_today"
+            ),
+            "solar_forecast_tomorrow_live": (
+                "solar_forecast_tomorrow"
+            ),
+        }
+
+        if key in live_forecast_keys:
+            decision_key = live_forecast_keys[key]
+
+            try:
+                value = round(float(payload), 2)
+            except (TypeError, ValueError):
+                log(
+                    "Decision input ignored invalid value "
+                    f"{decision_key}: {payload}"
+                )
+                return
+
+            decision_inputs[decision_key] = value
+
+            log(
+                "Decision input updated: "
+                f"{decision_key}={value}"
+            )
+            return
+
+        if key in {
+            "solar_forecast_today",
+            "solar_forecast_tomorrow",
+        }:
+            try:
+                decision_inputs[key] = round(
+                    float(payload),
+                    2,
+                )
+            except (TypeError, ValueError):
+                pass
 
         daily_summary.update_input(
             key,
