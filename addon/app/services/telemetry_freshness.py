@@ -46,14 +46,9 @@ class TelemetryFreshnessMonitor:
             self.reason = "no_recent_valid_telemetry"
             return
 
-        if self.house_load_unchanged_since is not None:
-            unchanged_time = now - self.house_load_unchanged_since
-
-            if unchanged_time >= 300:
-                self.status = "warning"
-                self.reason = "house_load_unchanged"
-                return
-
+        # An unchanged house load is useful diagnostic information, but it is
+        # not evidence that telemetry has stopped while valid messages continue
+        # to arrive. Freshness is therefore based only on valid telemetry age.
         self.status = "fresh"
         self.reason = "ok"
 
