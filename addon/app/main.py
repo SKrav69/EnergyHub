@@ -215,22 +215,36 @@ def main():
 
         return daily_summary_changed
 
-    def queue_mode_request(requested_mode):
+    def queue_mode_request(
+        requested_mode,
+        notification_event=None,
+    ):
         # MQTT callbacks run in the Paho network thread while requests are
         # consumed in the main loop. The lock makes the read/replace/write
         # operation atomic and prevents an ordinary request from replacing
         # a pending safe Solar recovery.
+        request = {
+            "mode": requested_mode,
+            "notification_event": notification_event,
+        }
+
         with mode_request_lock:
             try:
-                pending_mode = mode_requests.get_nowait()
+                pending_request = mode_requests.get_nowait()
             except queue.Empty:
-                pending_mode = None
+                pending_request = None
+
+            pending_mode = (
+                pending_request.get("mode")
+                if isinstance(pending_request, dict)
+                else pending_request
+            )
 
             if (
                 pending_mode == "safe_solar"
                 and requested_mode != "safe_solar"
             ):
-                mode_requests.put_nowait(pending_mode)
+                mode_requests.put_nowait(pending_request)
 
                 log(
                     "Preserved pending safe Solar recovery; "
@@ -239,7 +253,7 @@ def main():
                 )
                 return False
 
-            mode_requests.put_nowait(requested_mode)
+            mode_requests.put_nowait(request)
 
         if requested_mode == "safe_solar":
             log(
@@ -301,9 +315,20 @@ def main():
 
         with mode_request_lock:
             try:
-                requested_mode = mode_requests.get_nowait()
+                request = mode_requests.get_nowait()
             except queue.Empty:
                 return
+
+        if isinstance(request, dict):
+            requested_mode = request.get("mode")
+            notification_event = request.get(
+                "notification_event"
+            )
+        else:
+            # Backward-compatible handling for any request queued before
+            # this process version became active.
+            requested_mode = request
+            notification_event = None
 
         if requested_mode == "safe_solar":
             if (
@@ -344,14 +369,22 @@ def main():
             f"{requested_mode}"
         )
 
+        transition_succeeded = False
+
         if requested_mode == "hybrid":
-            inverter_controller.enter_hybrid()
+            transition_succeeded = (
+                inverter_controller.enter_hybrid()
+            )
 
         elif requested_mode == "hybrid_grid_hold":
-            inverter_controller.enter_hybrid_grid_hold()
+            transition_succeeded = (
+                inverter_controller.enter_hybrid_grid_hold()
+            )
 
         elif requested_mode == "solar":
-            inverter_controller.restore_solar()
+            transition_succeeded = (
+                inverter_controller.restore_solar()
+            )
 
         elif requested_mode == "panic":
             panic_target_soc = PANIC_DEFAULT_TARGET_SOC
@@ -364,7 +397,9 @@ def main():
                 f"target SOC={panic_target_soc}%"
             )
 
-            inverter_controller.enter_panic()
+            transition_succeeded = (
+                inverter_controller.enter_panic()
+            )
 
         elif requested_mode == "panic_80":
             panic_target_soc = 80
@@ -377,7 +412,9 @@ def main():
                 f"target SOC={panic_target_soc}%"
             )
 
-            inverter_controller.enter_panic()
+            transition_succeeded = (
+                inverter_controller.enter_panic()
+            )
 
         elif requested_mode == "panic_95":
             panic_target_soc = 95
@@ -390,7 +427,9 @@ def main():
                 f"target SOC={panic_target_soc}%"
             )
 
-            inverter_controller.enter_panic()
+            transition_succeeded = (
+                inverter_controller.enter_panic()
+            )
 
         else:
             log(
@@ -400,6 +439,36 @@ def main():
             return
 
         publish_controller_state()
+
+        if notification_event is not None:
+            event = dict(notification_event)
+
+            if transition_succeeded:
+                event["type"] = "automatic_mode_activation"
+
+                publish_notification_event(
+                    client,
+                    event,
+                )
+            else:
+                event["type"] = (
+                    "automatic_mode_activation_failed"
+                )
+                event["error"] = (
+                    inverter_controller.last_error
+                    or (
+                        "The requested inverter transition was not "
+                        "confirmed"
+                    )
+                )
+                event["current_mode"] = (
+                    inverter_controller.mode
+                )
+
+                publish_notification_event(
+                    client,
+                    event,
+                )
 
         if inverter_controller.mode == "solar":
             panic_evaluation_requested = True
@@ -452,10 +521,9 @@ def main():
             f"{decision['required_energy']:.2f} kWh"
         )
 
-        publish_notification_event(
-            client,
-            {
-                "type": "automatic_mode_activation",
+        queue_mode_request(
+            requested_mode,
+            notification_event={
                 "mode": "hybrid",
                 "soc": state.battery_soc,
                 "forecast": forecast_tomorrow,
@@ -464,8 +532,6 @@ def main():
                 "reason": decision["reason"],
             },
         )
-
-        queue_mode_request(requested_mode)
 
     def evaluate_panic(state):
         grid_confidence = stability.level()
@@ -512,10 +578,9 @@ def main():
             f"target={decision['target_soc']}%"
         )
 
-        publish_notification_event(
-            client,
-            {
-                "type": "automatic_mode_activation",
+        queue_mode_request(
+            requested_mode,
+            notification_event={
                 "mode": "panic",
                 "soc": state.battery_soc,
                 "forecast": forecast_today,
@@ -524,8 +589,6 @@ def main():
                 "reason": decision["reason"],
             },
         )
-
-        queue_mode_request(requested_mode)
 
     def on_connect(client, userdata, flags, rc):
         if rc == 0:

@@ -383,8 +383,8 @@
   mode: single
 - id: '1783953087633'
   alias: EnergyHub - Mode Notifications
-  description: Shows notifications when EnergyHub automatically activates Hybrid or
-    Panic.
+  description: Shows notifications after automatic Hybrid or Panic transitions succeed
+    or fail.
   triggers:
   - trigger: mqtt
     topic: energyhub/event/notification
@@ -392,18 +392,22 @@
   actions:
   - variables:
       event: '{{ trigger.payload_json }}'
+      event_type: '{{ event.type | default(''unknown'') }}'
       mode: '{{ event.mode | default(''unknown'') }}'
       soc: '{{ event.soc | default(''unknown'') }}'
       target_soc: '{{ event.target_soc | default(''unknown'') }}'
       reason: '{{ event.reason | default(''No reason provided'') }}'
+      error: '{{ event.error | default(''No transition error provided'') }}'
+      current_mode: '{{ event.current_mode | default(''unknown'') }}'
   - choose:
     - conditions:
       - condition: template
-        value_template: '{{ mode == ''hybrid'' }}'
+        value_template: '{{ event_type == ''automatic_mode_activation'' and mode ==
+          ''hybrid'' }}'
       sequence:
       - action: persistent_notification.create
         data:
-          title: "\U0001F319 EnergyHub: Hybrid activated"
+          title: "🌙 EnergyHub: Hybrid activated"
           notification_id: energyhub_hybrid
           message: 'Battery SOC: {{ soc }}%
 
@@ -418,11 +422,12 @@
             Reason: {{ reason }}'
     - conditions:
       - condition: template
-        value_template: '{{ mode == ''panic'' }}'
+        value_template: '{{ event_type == ''automatic_mode_activation'' and mode ==
+          ''panic'' }}'
       sequence:
       - action: persistent_notification.create
         data:
-          title: "\U0001F6A8 EnergyHub: Panic activated"
+          title: "🚨 EnergyHub: Panic activated"
           notification_id: energyhub_panic
           message: 'Battery SOC: {{ soc }}%
 
@@ -433,5 +438,39 @@
             Target SOC: {{ target_soc }}%
 
             Reason: {{ reason }}'
+    - conditions:
+      - condition: template
+        value_template: '{{ event_type == ''automatic_mode_activation_failed'' and
+          mode == ''hybrid'' }}'
+      sequence:
+      - action: persistent_notification.create
+        data:
+          title: "⚠️ EnergyHub: Hybrid activation failed"
+          notification_id: energyhub_hybrid
+          message: 'EnergyHub decided to activate Hybrid, but the inverter transition
+            was not confirmed.
+
+            Current mode: {{ current_mode }}
+
+            Error: {{ error }}
+
+            Decision reason: {{ reason }}'
+    - conditions:
+      - condition: template
+        value_template: '{{ event_type == ''automatic_mode_activation_failed'' and
+          mode == ''panic'' }}'
+      sequence:
+      - action: persistent_notification.create
+        data:
+          title: "⚠️ EnergyHub: Panic activation failed"
+          notification_id: energyhub_panic
+          message: 'EnergyHub decided to activate Panic, but the inverter transition
+            was not confirmed.
+
+            Current mode: {{ current_mode }}
+
+            Error: {{ error }}
+
+            Decision reason: {{ reason }}'
   mode: queued
   max: 10
