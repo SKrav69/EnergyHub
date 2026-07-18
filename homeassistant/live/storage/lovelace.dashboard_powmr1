@@ -17,116 +17,123 @@
                   "heading": "Solar PV - House load - Battery %"
                 },
                 {
-                  "type": "grid",
-                  "columns": 1,
-                  "square": false,
-                  "cards": [
+                  "type": "custom:apexcharts-card",
+                  "header": {
+                    "show": true,
+                    "title": "Solar, Load & Battery — 24h",
+                    "show_states": true,
+                    "colorize_states": true
+                  },
+                  "graph_span": "24h",
+                  "update_interval": "60s",
+                  "apex_config": {
+                    "chart": {
+                      "height": 350,
+                      "toolbar": {
+                        "show": false
+                      }
+                    },
+                    "dataLabels": {
+                      "enabled": false
+                    },
+                    "stroke": {
+                      "curve": "smooth",
+                      "lineCap": "round"
+                    },
+                    "markers": {
+                      "size": 0
+                    },
+                    "legend": {
+                      "show": true,
+                      "position": "bottom",
+                      "horizontalAlign": "center"
+                    },
+                    "tooltip": {
+                      "shared": true,
+                      "intersect": false
+                    },
+                    "xaxis": {
+                      "type": "datetime",
+                      "tickAmount": 8,
+                      "labels": {
+                        "datetimeUTC": false,
+                        "format": "HH:mm",
+                        "rotate": 0
+                      }
+                    }
+                  },
+                  "series": [
                     {
-                      "type": "grid",
-                      "columns": 1,
-                      "square": false,
-                      "cards": [
-                        {
-                          "type": "grid",
-                          "columns": 1,
-                          "square": false,
-                          "cards": [
-                            {
-                              "type": "custom:apexcharts-card",
-                              "header": {
-                                "show": true,
-                                "title": "Solar Overview (24h)",
-                                "show_states": true,
-                                "colorize_states": true
-                              },
-                              "graph_span": "24h",
-                              "update_interval": "60s",
-                              "apex_config": {
-                                "stroke": {
-                                  "curve": "smooth"
-                                },
-                                "xaxis": {
-                                  "type": "datetime",
-                                  "labels": {
-                                    "format": "HH:mm"
-                                  }
-                                }
-                              },
-                              "series": [
-                                {
-                                  "entity": "sensor.powmr_10_2m_pv1_power",
-                                  "name": "Solar PV",
-                                  "type": "line",
-                                  "yaxis_id": "power",
-                                  "stroke_width": 1,
-                                  "float_precision": 0,
-                                  "group_by": {
-                                    "func": "avg",
-                                    "duration": "5min"
-                                  }
-                                },
-                                {
-                                  "entity": "sensor.powmr_10_2m_output_power",
-                                  "name": "House Load",
-                                  "type": "line",
-                                  "yaxis_id": "power",
-                                  "stroke_width": 1,
-                                  "float_precision": 0,
-                                  "group_by": {
-                                    "func": "avg",
-                                    "duration": "5min"
-                                  }
-                                },
-                                {
-                                  "entity": "sensor.powmr_10_2m_battery_soc",
-                                  "name": "Battery SOC",
-                                  "type": "line",
-                                  "yaxis_id": "soc",
-                                  "stroke_width": 3,
-                                  "color": "#00ff88",
-                                  "float_precision": 0,
-                                  "group_by": {
-                                    "func": "last",
-                                    "duration": "5min"
-                                  }
-                                }
-                              ],
-                              "yaxis": [
-                                {
-                                  "id": "power",
-                                  "min": 0,
-                                  "decimals": 0,
-                                  "apex_config": {
-                                    "title": {
-                                      "text": "Power (W)"
-                                    }
-                                  }
-                                },
-                                {
-                                  "id": "soc",
-                                  "opposite": true,
-                                  "min": 0,
-                                  "max": 100,
-                                  "decimals": 0,
-                                  "apex_config": {
-                                    "title": {
-                                      "text": "Battery SOC (%)",
-                                      "style": {
-                                        "color": "#00ff88"
-                                      }
-                                    },
-                                    "labels": {
-                                      "style": {
-                                        "colors": "#00ff88"
-                                      }
-                                    }
-                                  }
-                                }
-                              ]
-                            }
-                          ]
+                      "entity": "sensor.powmr_10_2m_pv1_power",
+                      "name": "Solar PV",
+                      "type": "line",
+                      "color": "#f39c12",
+                      "yaxis_id": "power",
+                      "stroke_width": 2,
+                      "float_precision": 0,
+                      "group_by": {
+                        "func": "avg",
+                        "duration": "5min"
+                      }
+                    },
+                    {
+                      "entity": "sensor.powmr_10_2m_output_power",
+                      "name": "House Load",
+                      "type": "line",
+                      "color": "#3498db",
+                      "yaxis_id": "power",
+                      "stroke_width": 2,
+                      "float_precision": 0,
+                      "group_by": {
+                        "func": "avg",
+                        "duration": "5min"
+                      }
+                    },
+                    {
+                      "entity": "sensor.powmr_10_2m_battery_soc",
+                      "name": "Battery SOC",
+                      "type": "line",
+                      "color": "#2ecc71",
+                      "yaxis_id": "soc",
+                      "stroke_width": 3,
+                      "float_precision": 0,
+                      "group_by": {
+                        "func": "last",
+                        "duration": "5min"
+                      }
+                    }
+                  ],
+                  "yaxis": [
+                    {
+                      "id": "power",
+                      "min": 0,
+                      "decimals": 0,
+                      "apex_config": {
+                        "title": {
+                          "text": "Power (W)"
                         }
-                      ]
+                      }
+                    },
+                    {
+                      "id": "soc",
+                      "opposite": true,
+                      "min": 0,
+                      "max": 100,
+                      "decimals": 0,
+                      "apex_config": {
+                        "tickAmount": 4,
+                        "title": {
+                          "text": "Battery SOC (%)",
+                          "style": {
+                            "color": "#2ecc71"
+                          }
+                        },
+                        "labels": {
+                          "style": {
+                            "colors": "#2ecc71"
+                          }
+                        }
+                      }
                     }
                   ]
                 }
@@ -145,7 +152,7 @@
                   "type": "custom:apexcharts-card",
                   "header": {
                     "show": true,
-                    "title": "Energy Balance (7 days)",
+                    "title": "Energy Balance — 7 days",
                     "show_states": true,
                     "colorize_states": true
                   },
@@ -153,18 +160,38 @@
                   "span": {
                     "end": "day"
                   },
+                  "update_interval": "60s",
                   "apex_config": {
                     "chart": {
-                      "type": "bar",
-                      "height": 350
+                      "height": 350,
+                      "toolbar": {
+                        "show": false
+                      }
+                    },
+                    "dataLabels": {
+                      "enabled": false
+                    },
+                    "stroke": {
+                      "curve": "smooth",
+                      "lineCap": "round"
+                    },
+                    "markers": {
+                      "size": 0
                     },
                     "plotOptions": {
                       "bar": {
-                        "columnWidth": "75%"
+                        "columnWidth": "70%",
+                        "borderRadius": 2
                       }
                     },
                     "legend": {
-                      "show": true
+                      "show": true,
+                      "position": "bottom",
+                      "horizontalAlign": "center"
+                    },
+                    "tooltip": {
+                      "shared": true,
+                      "intersect": false
                     },
                     "xaxis": {
                       "type": "datetime",
@@ -180,11 +207,11 @@
                   "series": [
                     {
                       "entity": "sensor.energyhub_daily_house_consumption",
-                      "name": "Consumption",
+                      "name": "House Consumption",
                       "type": "column",
-                      "color": "#2980b9",
+                      "color": "#3498db",
+                      "yaxis_id": "energy",
                       "float_precision": 1,
-                      "yaxis_id": "kwh",
                       "show": {
                         "in_header": false
                       },
@@ -195,11 +222,11 @@
                     },
                     {
                       "entity": "sensor.energyhub_daily_solar_surplus_estimated",
-                      "name": "Unused Solar Estimated",
+                      "name": "Solar Surplus Est.",
                       "type": "column",
-                      "color": "#e67e22",
+                      "color": "#f39c12",
+                      "yaxis_id": "energy",
                       "float_precision": 1,
-                      "yaxis_id": "kwh",
                       "show": {
                         "in_header": false
                       },
@@ -213,29 +240,13 @@
                       "name": "Grid Import Today",
                       "type": "column",
                       "color": "#8e44ad",
-                      "float_precision": 2,
-                      "yaxis_id": "kwh",
+                      "yaxis_id": "energy",
+                      "float_precision": 1,
                       "show": {
                         "in_header": false
                       },
                       "group_by": {
                         "func": "max",
-                        "duration": "1d"
-                      }
-                    },
-                    {
-                      "entity": "sensor.energyhub_daily_grid_availability",
-                      "name": "Grid Availability",
-                      "type": "line",
-                      "color": "#27ae60",
-                      "stroke_width": 3,
-                      "float_precision": 1,
-                      "yaxis_id": "grid",
-                      "show": {
-                        "in_header": false
-                      },
-                      "group_by": {
-                        "func": "avg",
                         "duration": "1d"
                       }
                     },
@@ -251,8 +262,8 @@
                     },
                     {
                       "entity": "sensor.solcast_pv_forecast_forecast_today",
-                      "name": "☀️ Forecast Today",
-                      "color": "#f1c40f",
+                      "name": "Solar Today",
+                      "color": "#f39c12",
                       "float_precision": 1,
                       "show": {
                         "in_chart": false,
@@ -261,8 +272,8 @@
                     },
                     {
                       "entity": "sensor.solcast_pv_forecast_forecast_tomorrow",
-                      "name": "☀️ Forecast Tomorrow",
-                      "color": "#f39c12",
+                      "name": "Solar Tomorrow",
+                      "color": "#f1c40f",
                       "float_precision": 1,
                       "show": {
                         "in_chart": false,
@@ -272,32 +283,12 @@
                   ],
                   "yaxis": [
                     {
-                      "id": "kwh",
+                      "id": "energy",
                       "min": 0,
                       "decimals": 1,
                       "apex_config": {
                         "title": {
-                          "text": "kWh"
-                        }
-                      }
-                    },
-                    {
-                      "id": "grid",
-                      "opposite": true,
-                      "min": 0,
-                      "max": 100,
-                      "decimals": 0,
-                      "apex_config": {
-                        "title": {
-                          "text": "Grid (%)",
-                          "style": {
-                            "color": "#27ae60"
-                          }
-                        },
-                        "labels": {
-                          "style": {
-                            "colors": "#27ae60"
-                          }
+                          "text": "Energy (kWh)"
                         }
                       }
                     }
@@ -317,20 +308,45 @@
                   "type": "custom:apexcharts-card",
                   "header": {
                     "show": true,
-                    "title": "Inverter Health (24h)",
+                    "title": "Inverter Load & Temperature — 24h",
                     "show_states": true,
                     "colorize_states": true
                   },
                   "graph_span": "24h",
                   "update_interval": "60s",
                   "apex_config": {
+                    "chart": {
+                      "height": 350,
+                      "toolbar": {
+                        "show": false
+                      }
+                    },
+                    "dataLabels": {
+                      "enabled": false
+                    },
                     "stroke": {
-                      "curve": "smooth"
+                      "curve": "smooth",
+                      "lineCap": "round"
+                    },
+                    "markers": {
+                      "size": 0
+                    },
+                    "legend": {
+                      "show": true,
+                      "position": "bottom",
+                      "horizontalAlign": "center"
+                    },
+                    "tooltip": {
+                      "shared": true,
+                      "intersect": false
                     },
                     "xaxis": {
                       "type": "datetime",
+                      "tickAmount": 8,
                       "labels": {
-                        "format": "HH:mm"
+                        "datetimeUTC": false,
+                        "format": "HH:mm",
+                        "rotate": 0
                       }
                     }
                   },
@@ -339,8 +355,8 @@
                       "entity": "sensor.powmr_10_2m_load",
                       "name": "Inverter Load",
                       "type": "line",
+                      "color": "#8e44ad",
                       "yaxis_id": "load",
-                      "color": "#9c27b0",
                       "stroke_width": 2,
                       "float_precision": 0,
                       "group_by": {
@@ -352,10 +368,10 @@
                       "entity": "sensor.powmr_10_2m_temperature",
                       "name": "Inverter Temperature",
                       "type": "line",
+                      "color": "#e74c3c",
                       "yaxis_id": "temperature",
-                      "color": "#e53935",
                       "stroke_width": 2,
-                      "float_precision": 1,
+                      "float_precision": 0,
                       "group_by": {
                         "func": "avg",
                         "duration": "5min"
@@ -370,14 +386,14 @@
                       "decimals": 0,
                       "apex_config": {
                         "title": {
-                          "text": "Load (%)",
+                          "text": "Inverter Load (%)",
                           "style": {
-                            "color": "#9c27b0"
+                            "color": "#8e44ad"
                           }
                         },
                         "labels": {
                           "style": {
-                            "colors": "#9c27b0"
+                            "colors": "#8e44ad"
                           }
                         }
                       }
@@ -385,19 +401,17 @@
                     {
                       "id": "temperature",
                       "opposite": true,
-                      "min": 20,
-                      "max": 80,
                       "decimals": 0,
                       "apex_config": {
                         "title": {
                           "text": "Temperature (°C)",
                           "style": {
-                            "color": "#e53935"
+                            "color": "#e74c3c"
                           }
                         },
                         "labels": {
                           "style": {
-                            "colors": "#e53935"
+                            "colors": "#e74c3c"
                           }
                         }
                       }
@@ -414,35 +428,66 @@
                   "heading": "New section"
                 },
                 {
-                  "type": "grid",
-                  "columns": 2,
-                  "square": false,
+                  "type": "vertical-stack",
                   "cards": [
                     {
-                      "type": "tile",
-                      "entity": "input_boolean.energyhub_autopilot",
-                      "name": "Autopilot",
-                      "icon": "mdi:robot",
-                      "color": "green",
-                      "vertical": false,
-                      "features_position": "bottom"
-                    },
-                    {
-                      "type": "button",
-                      "entity": "script.energyhub_start_panic",
-                      "name": "Start Panic",
-                      "icon": "mdi:alert-octagon",
-                      "show_state": false,
-                      "tap_action": {
-                        "action": "toggle"
-                      },
-                      "hold_action": {
-                        "action": "none"
-                      }
+                      "type": "heading",
+                      "heading": "Modes & Controls",
+                      "heading_style": "title",
+                      "icon": "mdi:robot-industrial"
                     },
                     {
                       "type": "markdown",
-                      "content": "{% set mode = states('sensor.energyhub_operating_mode') %}\n\n{% if mode == 'solar' %}\n  ## ☀️ SOLAR\n{% elif mode == 'hybrid_charging' %}\n  ## 🌙 HYBRID CHARGING\n{% elif mode == 'hybrid_grid_hold' %}\n  ## 🌙 HYBRID GRID HOLD\n{% elif mode == 'panic' %}\n  ## 🔴 PANIC\n{% elif mode == 'transitioning' %}\n  ## 🔄 TRANSITIONING\n{% elif mode == 'transition_failed' %}\n  ## ❌ TRANSITION FAILED\n{% else %}\n  ## ⚪ UNKNOWN\n{% endif %}\n\n{{ states('sensor.energyhub_operating_mode_reason') }}\n"
+                      "content": "{% set mode = states('sensor.energyhub_operating_mode') | lower %} {% set reason = states('sensor.energyhub_operating_mode_reason') %}\n{% set mode_icon = {\n  'solar': '☀️',\n  'hybrid_charging': '🌙',\n  'hybrid_grid_hold': '🔌',\n  'panic': '🚨',\n  'transitioning': '🔄',\n  'transition_failed': '❌',\n  'unknown': '❓'\n}.get(mode, '❓') %}\n{% set mode_name = {\n  'solar': 'SOLAR',\n  'hybrid_charging': 'HYBRID CHARGING',\n  'hybrid_grid_hold': 'HYBRID GRID HOLD',\n  'panic': 'PANIC — EMERGENCY RESERVE',\n  'transitioning': 'CHANGING MODE',\n  'transition_failed': 'MODE CHANGE FAILED',\n  'unknown': 'UNKNOWN'\n}.get(mode, mode | upper) %}\n{% set description = {\n  'solar': 'Using solar and battery first.',\n  'hybrid_charging': 'Charging the battery using the cheap night tariff.',\n  'hybrid_grid_hold': 'Battery target reached. The house remains on grid until morning.',\n  'panic': 'Building emergency battery reserve.',\n  'transitioning': 'EnergyHub is changing the inverter strategy.',\n  'transition_failed': 'The requested inverter strategy was not confirmed.',\n  'unknown': 'The current energy strategy is unavailable.'\n}.get(mode, '') %}\n## {{ mode_icon }} {{ mode_name }}\n{{ description }}\n**Reason:** {{ reason }}"
+                    },
+                    {
+                      "type": "grid",
+                      "columns": 3,
+                      "square": false,
+                      "cards": [
+                        {
+                          "type": "tile",
+                          "entity": "input_boolean.energyhub_autopilot",
+                          "name": "Autopilot",
+                          "icon": "mdi:robot",
+                          "color": "green",
+                          "vertical": true,
+                          "features_position": "bottom",
+                          "tap_action": {
+                            "action": "toggle"
+                          }
+                        },
+                        {
+                          "type": "button",
+                          "entity": "script.energyhub_start_panic",
+                          "name": "Start Panic",
+                          "icon": "mdi:shield-alert",
+                          "show_state": false,
+                          "icon_height": "42px",
+                          "tap_action": {
+                            "action": "toggle",
+                            "confirmation": {
+                              "text": "Start Panic and build emergency battery reserve?"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          }
+                        },
+                        {
+                          "type": "button",
+                          "name": "Smart Thermal · Planned 1.5",
+                          "icon": "mdi:home-thermometer",
+                          "show_state": false,
+                          "icon_height": "42px",
+                          "tap_action": {
+                            "action": "none"
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          }
+                        }
+                      ]
                     }
                   ]
                 }
@@ -456,21 +501,22 @@
                   "heading": "New section"
                 },
                 {
-                  "type": "grid",
-                  "columns": 1,
-                  "square": false,
+                  "type": "vertical-stack",
                   "cards": [
                     {
                       "type": "markdown",
-                      "content": "## EnergyHub Status\n\n{% set output = states('sensor.energyhub_output_source_priority') %}\n{% set charger = states('sensor.energyhub_charger_source_priority') %}\n\n{% if output == 'SBU' %}\n**House power priority:**  \n☀️ Solar → 🔋 Battery → ⚡ Grid\n{% elif output == 'SUB' %}\n**House power priority:**  \n☀️ Solar → ⚡ Grid → 🔋 Battery\n{% else %}\n**House power priority:** Unknown\n{% endif %}\n\n{% if charger == 'OSO' %}\n**Battery charging source:**  \n☀️ Solar only\n{% elif charger == 'SNU' %}\n**Battery charging source:**  \n☀️ Solar + ⚡ Grid\n{% else %}\n**Battery charging source:** Unknown\n{% endif %}\n"
+                      "title": "EnergyHub Status",
+                      "content": "{% set output = states('sensor.energyhub_output_source_priority') | upper %} {% set charger = states('sensor.energyhub_charger_source_priority') | upper %}\n**House power priority:**\n{% if output == 'SBU' %} 🟠 Solar → 🟩 Battery → ⚡ Grid {% elif output == 'SUB' %} 🟠 Solar → ⚡ Grid → 🟩 Battery {% else %} ❔ {{ output }} {% endif %}\n**Battery charging source:**\n{% if charger == 'OSO' %} 🟠 Solar only {% elif charger == 'SNU' %} 🟠 Solar + ⚡ Grid {% else %} ❔ {{ charger }} {% endif %}"
                     },
                     {
                       "type": "entities",
                       "show_header_toggle": false,
+                      "state_color": true,
                       "entities": [
                         {
                           "entity": "sensor.energyhub_communication_status",
-                          "name": "Communication"
+                          "name": "Communication",
+                          "icon": "mdi:eye"
                         },
                         {
                           "type": "section",
@@ -478,39 +524,89 @@
                         },
                         {
                           "entity": "sensor.powmr_10_2m_battery_soc",
-                          "name": "Battery SOC"
+                          "name": "Battery SOC",
+                          "icon": "mdi:battery"
                         },
                         {
                           "entity": "sensor.powmr_10_2m_battery_charging_current",
-                          "name": "Battery Charging Current"
+                          "name": "Battery Charging Current",
+                          "icon": "mdi:current-ac"
                         },
                         {
                           "entity": "sensor.powmr_10_2m_battery_discharge_current",
-                          "name": "Battery Discharge Current"
+                          "name": "Battery Discharge Current",
+                          "icon": "mdi:current-ac"
                         },
                         {
                           "entity": "sensor.powmr_10_2m_output_power",
-                          "name": "House Load"
+                          "name": "House Load",
+                          "icon": "mdi:home-lightning-bolt"
                         },
                         {
                           "entity": "sensor.powmr_10_2m_pv1_power",
-                          "name": "Solar Power"
-                        },
+                          "name": "Solar Power",
+                          "icon": "mdi:solar-power"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "heading",
+                      "heading": "Grid",
+                      "heading_style": "subtitle",
+                      "icon": "mdi:transmission-tower"
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
                         {
-                          "type": "section",
-                          "label": "Grid"
-                        },
-                        {
+                          "condition": "numeric_state",
                           "entity": "sensor.powmr_10_2m_grid_voltage",
-                          "name": "Grid Voltage"
-                        },
+                          "above": 1
+                        }
+                      ],
+                      "card": {
+                        "type": "tile",
+                        "entity": "sensor.powmr_10_2m_grid_voltage",
+                        "name": "Grid Online",
+                        "icon": "mdi:transmission-tower",
+                        "color": "green",
+                        "vertical": false,
+                        "features_position": "bottom"
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "numeric_state",
+                          "entity": "sensor.powmr_10_2m_grid_voltage",
+                          "below": 1
+                        }
+                      ],
+                      "card": {
+                        "type": "tile",
+                        "entity": "sensor.powmr_10_2m_grid_voltage",
+                        "name": "Grid Offline",
+                        "icon": "mdi:transmission-tower-off",
+                        "color": "red",
+                        "vertical": false,
+                        "features_position": "bottom"
+                      }
+                    },
+                    {
+                      "type": "entities",
+                      "show_header_toggle": false,
+                      "state_color": true,
+                      "entities": [
                         {
                           "entity": "sensor.energyhub_grid_import_power_estimated",
-                          "name": "Grid Import Power Estimated"
+                          "name": "Grid Import Now",
+                          "icon": "mdi:transmission-tower-import"
                         },
                         {
                           "entity": "sensor.energyhub_daily_grid_import_estimated",
-                          "name": "Grid Import Today Estimated"
+                          "name": "Grid Import Today",
+                          "icon": "mdi:counter"
                         }
                       ]
                     }
@@ -531,15 +627,16 @@
                     {
                       "type": "markdown",
                       "title": "EnergyHub Decision Logic",
-                      "content": "{% set grid = states('sensor.energyhub_grid_confidence') | lower %} {% set mode = states('sensor.energyhub_operating_mode') | lower %} {% set night = states('sensor.energyhub_hybrid_decision') | lower %}\n{% set grid_icon = {\n  'normal': '🟢',\n  'unstable': '🟡',\n  'risk': '🟠',\n  'panic': '🔴'\n}.get(grid, '⚪') %}\n{% set mode_icon = {\n  'solar': '☀️',\n  'hybrid_charging': '🌙',\n  'hybrid_grid_hold': '🌙',\n  'panic': '🚨',\n  'transitioning': '🔄',\n  'transition_failed': '❌',\n  'unknown': '❓'\n}.get(mode, '❓') %}\n{% set mode_name = {\n  'solar': 'SOLAR',\n  'hybrid_charging': 'HYBRID CHARGING',\n  'hybrid_grid_hold': 'HYBRID GRID HOLD',\n  'panic': 'PANIC',\n  'transitioning': 'TRANSITIONING',\n  'transition_failed': 'TRANSITION FAILED',\n  'unknown': 'UNKNOWN'\n}.get(mode, mode | upper) %}\n{% set night_icon = {\n  'solar': '☀️',\n  'hybrid': '🌙',\n  'skipped': '⏭️',\n  'not_evaluated': '❓',\n  'unknown': '❓'\n}.get(night, '❓') %}\n{% set night_name = {\n  'solar': 'SOLAR',\n  'hybrid': 'HYBRID',\n  'skipped': 'SKIPPED',\n  'not_evaluated': 'NOT EVALUATED',\n  'unknown': 'UNKNOWN'\n}.get(night, night | upper) %}\n**Grid Confidence:** {{ grid_icon }} **{{ grid | upper }}**\n**Current Mode:** {{ mode_icon }} **{{ mode_name }}**\n**Night Tariff Decision:** {{ night_icon }} **{{ night_name }}**"
+                      "content": "{% set confidence = states('sensor.energyhub_grid_confidence') | lower %} {% set mode = states('sensor.energyhub_operating_mode') | lower %} {% set hybrid = states('sensor.energyhub_hybrid_decision') | lower %}\n{% set confidence_icon = {\n  'normal': '🟢',\n  'unstable': '🟡',\n  'risk': '🟠',\n  'panic': '🔴',\n  'unknown': '⚪'\n}.get(confidence, '⚪') %}\n{% set mode_icon = {\n  'solar': '☀️',\n  'hybrid_charging': '🌙',\n  'hybrid_grid_hold': '🔌',\n  'panic': '🚨',\n  'transitioning': '🔄',\n  'transition_failed': '❌',\n  'unknown': '❓'\n}.get(mode, '❓') %}\n{% set hybrid_icon = {\n  'solar': '☀️',\n  'hybrid': '🌙',\n  'charge': '🌙',\n  'charging_required': '🌙',\n  'not_evaluated': '⏳',\n  'skipped': '⚪'\n}.get(hybrid, 'ℹ️') %}\n**Grid Confidence:** {{ confidence_icon }} **{{ confidence | upper }}**\n**Current Mode:** {{ mode_icon }} **{{ mode | replace('_', ' ') | upper }}**\n**Night Plan:** {{ hybrid_icon }} **{{ hybrid | replace('_', ' ') | upper }}**"
                     },
                     {
                       "type": "entities",
                       "show_header_toggle": false,
+                      "state_color": true,
                       "entities": [
                         {
                           "type": "section",
-                          "label": "Grid Situation"
+                          "label": "Grid situation"
                         },
                         {
                           "entity": "sensor.energyhub_grid_confidence",
@@ -547,81 +644,57 @@
                           "icon": "mdi:transmission-tower"
                         },
                         {
-                          "entity": "sensor.energyhub_grid_available_24h",
-                          "name": "Grid Available — Last 24 Hours",
-                          "icon": "mdi:clock-outline"
-                        },
-                        {
-                          "entity": "sensor.energyhub_grid_available_48h",
-                          "name": "Grid Available — Last 48 Hours",
-                          "icon": "mdi:clock-outline"
+                          "entity": "sensor.energyhub_grid_availability_24h",
+                          "name": "Grid Availability — 24h",
+                          "icon": "mdi:percent"
                         },
                         {
                           "type": "section",
-                          "label": "Night Tariff Decision — 23:50"
+                          "label": "Night tariff decision"
                         },
                         {
                           "entity": "sensor.energyhub_hybrid_decision",
-                          "name": "Final Decision",
-                          "icon": "mdi:weather-sunset"
-                        },
-                        {
-                          "type": "section",
-                          "label": "Evaluation Data"
-                        },
-                        {
-                          "entity": "sensor.energyhub_hybrid_evaluated_soc",
-                          "name": "Battery SOC",
-                          "icon": "mdi:battery"
-                        },
-                        {
-                          "entity": "sensor.energyhub_hybrid_evaluated_consumption",
-                          "name": "House Consumption Today",
-                          "icon": "mdi:home-lightning-bolt-outline"
-                        },
-                        {
-                          "entity": "sensor.energyhub_hybrid_battery_refill_required",
-                          "name": "Battery Energy to Full",
-                          "icon": "mdi:battery-plus-outline"
-                        },
-                        {
-                          "entity": "sensor.energyhub_hybrid_total_energy_required",
-                          "name": "Total Energy Required",
-                          "icon": "mdi:calculator-variant-outline"
-                        },
-                        {
-                          "entity": "sensor.energyhub_hybrid_evaluated_forecast",
-                          "name": "Solar Forecast Tomorrow",
-                          "icon": "mdi:weather-sunny"
+                          "name": "Night Plan",
+                          "icon": "mdi:weather-night"
                         },
                         {
                           "entity": "sensor.energyhub_hybrid_decision_reason",
                           "name": "Decision Reason",
-                          "icon": "mdi:information-outline"
+                          "icon": "mdi:text-box-search-outline"
                         },
                         {
-                          "type": "section",
-                          "label": "Current Panic Decision"
+                          "entity": "sensor.energyhub_hybrid_evaluated_soc",
+                          "name": "Battery SOC at Evaluation",
+                          "icon": "mdi:battery"
                         },
                         {
-                          "entity": "sensor.solcast_pv_forecast_forecast_today",
-                          "name": "Solar Forecast Today",
+                          "entity": "sensor.energyhub_hybrid_evaluated_consumption",
+                          "name": "Expected House Consumption",
+                          "icon": "mdi:home-lightning-bolt-outline"
+                        },
+                        {
+                          "entity": "sensor.energyhub_hybrid_evaluated_forecast",
+                          "name": "Solar Forecast Used",
                           "icon": "mdi:weather-sunny"
                         },
                         {
-                          "entity": "sensor.energyhub_daily_house_consumption",
-                          "name": "Yesterday House Consumption",
-                          "icon": "mdi:home-lightning-bolt-outline"
+                          "entity": "sensor.energyhub_hybrid_total_energy_required",
+                          "name": "Energy Required",
+                          "icon": "mdi:battery-plus-outline"
+                        },
+                        {
+                          "type": "section",
+                          "label": "Daytime reserve protection"
                         },
                         {
                           "entity": "sensor.energyhub_panic_decision",
                           "name": "Panic Decision",
-                          "icon": "mdi:alert-octagon-outline"
+                          "icon": "mdi:shield-alert-outline"
                         },
                         {
                           "entity": "sensor.energyhub_panic_decision_reason",
                           "name": "Panic Decision Reason",
-                          "icon": "mdi:information-outline"
+                          "icon": "mdi:text-box-search-outline"
                         }
                       ]
                     }
@@ -637,25 +710,58 @@
                   "heading": "New section"
                 },
                 {
-                  "type": "entities",
-                  "title": "1st Floor",
-                  "show_header_toggle": false,
-                  "entities": [
+                  "type": "vertical-stack",
+                  "cards": [
                     {
-                      "entity": "sensor.miaomiaoce_t2_e515_temperature",
-                      "name": "Temperature"
+                      "type": "heading",
+                      "heading": "1st Floor",
+                      "heading_style": "title",
+                      "icon": "mdi:home-floor-1"
                     },
                     {
-                      "entity": "sensor.miaomiaoce_t2_e515_relative_humidity",
-                      "name": "Humidity"
-                    },
-                    {
-                      "entity": "switch.lumi_v1_64d7_switch",
-                      "name": "Heat Pump"
-                    },
-                    {
-                      "entity": "sensor.lumi_v1_64d7_electric_power",
-                      "name": "Heat Pump Power"
+                      "type": "grid",
+                      "columns": 2,
+                      "square": false,
+                      "cards": [
+                        {
+                          "type": "tile",
+                          "entity": "sensor.miaomiaoce_t2_e515_temperature",
+                          "name": "Temperature",
+                          "icon": "mdi:thermometer",
+                          "color": "orange",
+                          "vertical": true
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "sensor.miaomiaoce_t2_e515_relative_humidity",
+                          "name": "Humidity",
+                          "icon": "mdi:water-percent",
+                          "color": "blue",
+                          "vertical": true
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "switch.lumi_v1_64d7_switch",
+                          "name": "Heat Pump",
+                          "icon": "mdi:heat-pump",
+                          "color": "green",
+                          "vertical": true,
+                          "tap_action": {
+                            "action": "toggle"
+                          },
+                          "hold_action": {
+                            "action": "more-info"
+                          }
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "sensor.lumi_v1_64d7_electric_power",
+                          "name": "Heat Pump Power",
+                          "icon": "mdi:flash",
+                          "color": "purple",
+                          "vertical": true
+                        }
+                      ]
                     }
                   ]
                 }
@@ -669,17 +775,36 @@
                   "heading": "New section"
                 },
                 {
-                  "type": "entities",
-                  "title": "2nd Floor (Kids room)",
-                  "show_header_toggle": false,
-                  "entities": [
+                  "type": "vertical-stack",
+                  "cards": [
                     {
-                      "entity": "sensor.miaomiaoce_t2_1bf2_temperature",
-                      "name": "Temperature"
+                      "type": "heading",
+                      "heading": "2nd Floor · Kids Room",
+                      "heading_style": "title",
+                      "icon": "mdi:home-floor-2"
                     },
                     {
-                      "entity": "sensor.miaomiaoce_t2_1bf2_relative_humidity",
-                      "name": "Humidity"
+                      "type": "grid",
+                      "columns": 2,
+                      "square": false,
+                      "cards": [
+                        {
+                          "type": "tile",
+                          "entity": "sensor.miaomiaoce_t2_1bf2_temperature",
+                          "name": "Temperature",
+                          "icon": "mdi:thermometer",
+                          "color": "orange",
+                          "vertical": true
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "sensor.miaomiaoce_t2_1bf2_relative_humidity",
+                          "name": "Humidity",
+                          "icon": "mdi:water-percent",
+                          "color": "blue",
+                          "vertical": true
+                        }
+                      ]
                     }
                   ]
                 }
@@ -693,33 +818,80 @@
                   "heading": "New section"
                 },
                 {
-                  "type": "entities",
-                  "title": "3rd Floor",
-                  "show_header_toggle": false,
-                  "entities": [
+                  "type": "vertical-stack",
+                  "cards": [
                     {
-                      "entity": "sensor.lumi_weather_v1_b318_temperature",
-                      "name": "Temperature"
+                      "type": "heading",
+                      "heading": "3rd Floor",
+                      "heading_style": "title",
+                      "icon": "mdi:home-floor-3"
                     },
                     {
-                      "entity": "sensor.lumi_weather_v1_b318_relative_humidity",
-                      "name": "Humidity"
-                    },
-                    {
-                      "entity": "switch.chuangmi_212a01_ea40_switch",
-                      "name": "Heat Pump"
-                    },
-                    {
-                      "entity": "sensor.chuangmi_212a01_ea40_electric_power",
-                      "name": "Heat Pump Power"
-                    },
-                    {
-                      "entity": "input_number.input_number_floor3_heat_pump_timer_hours",
-                      "name": "Auto-Off"
-                    },
-                    {
-                      "entity": "timer.floor_3_heat_pump_auto_off",
-                      "name": "Remaining"
+                      "type": "grid",
+                      "columns": 2,
+                      "square": false,
+                      "cards": [
+                        {
+                          "type": "tile",
+                          "entity": "sensor.lumi_weather_v1_b318_temperature",
+                          "name": "Temperature",
+                          "icon": "mdi:thermometer",
+                          "color": "orange",
+                          "vertical": true
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "sensor.lumi_weather_v1_b318_relative_humidity",
+                          "name": "Humidity",
+                          "icon": "mdi:water-percent",
+                          "color": "blue",
+                          "vertical": true
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "switch.chuangmi_212a01_ea40_switch",
+                          "name": "Heat Pump",
+                          "icon": "mdi:heat-pump",
+                          "color": "green",
+                          "vertical": true,
+                          "tap_action": {
+                            "action": "toggle"
+                          },
+                          "hold_action": {
+                            "action": "more-info"
+                          }
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "sensor.chuangmi_212a01_ea40_electric_power",
+                          "name": "Heat Pump Power",
+                          "icon": "mdi:flash",
+                          "color": "purple",
+                          "vertical": true
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "input_number.input_number_floor3_heat_pump_timer_hours",
+                          "name": "Auto-Off Duration",
+                          "icon": "mdi:timer-cog-outline",
+                          "color": "blue",
+                          "vertical": true,
+                          "tap_action": {
+                            "action": "more-info"
+                          }
+                        },
+                        {
+                          "type": "tile",
+                          "entity": "timer.floor_3_heat_pump_auto_off",
+                          "name": "Time Remaining",
+                          "icon": "mdi:timer-outline",
+                          "color": "blue",
+                          "vertical": true,
+                          "tap_action": {
+                            "action": "more-info"
+                          }
+                        }
+                      ]
                     }
                   ]
                 }
