@@ -209,7 +209,7 @@
                       }
                     },
                     {
-                      "entity": "sensor.energyhub_daily_grid_import_estimated",
+                      "entity": "sensor.energyhub_daily_summary_grid_import",
                       "name": "Grid Import Today",
                       "type": "column",
                       "color": "#8e44ad",

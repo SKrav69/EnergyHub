@@ -17,6 +17,52 @@ OUTPUT_SOURCE_PRIORITY_MAP = {
 }
 
 
+# Stable entity IDs for fresh Home Assistant installations. Existing entities
+# keep their registry IDs; these values are used only when an MQTT entity is
+# created for the first time.
+POWMR_DEFAULT_ENTITY_IDS = {
+    "ac_input_voltage": "sensor.powmr_10_2m_grid_voltage",
+    "ac_input_frequency": "sensor.powmr_10_2m_grid_frequency",
+    "ac_output_voltage": "sensor.powmr_10_2m_output_voltage",
+    "ac_output_frequency": "sensor.powmr_10_2m_output_frequency",
+    "ac_output_active_power": "sensor.powmr_10_2m_output_power",
+    "ac_output_apparent_power": "sensor.powmr_10_2m_apparent_power",
+    "ac_output_load": "sensor.powmr_10_2m_load",
+    "bus_voltage": "sensor.powmr_10_2m_bus_voltage",
+    "battery_voltage": "sensor.powmr_10_2m_battery_voltage",
+    "battery_voltage_from_scc": (
+        "sensor.powmr_10_2m_battery_voltage_from_scc"
+    ),
+    "battery_capacity": "sensor.powmr_10_2m_battery_soc",
+    "battery_charging_current": (
+        "sensor.powmr_10_2m_battery_charging_current"
+    ),
+    "battery_discharge_current": (
+        "sensor.powmr_10_2m_battery_discharge_current"
+    ),
+    "pv1_input_voltage": "sensor.powmr_10_2m_pv1_voltage",
+    "pv1_input_current": "sensor.powmr_10_2m_pv1_current",
+    "pv1_charging_power": "sensor.powmr_10_2m_pv1_power",
+    "inverter_heat_sink_temperature": (
+        "sensor.powmr_10_2m_temperature"
+    ),
+}
+
+ENERGYHUB_DEFAULT_ENTITY_ID_OVERRIDES = {
+    "grid_available_hours_24h": "sensor.energyhub_grid_available_24h",
+    "grid_available_hours_48h": "sensor.energyhub_grid_available_48h",
+    "grid_outage_hours_24h": "sensor.energyhub_grid_outage_24h",
+    "grid_availability_percent_24h": (
+        "sensor.energyhub_grid_availability_24h"
+    ),
+    "grid_confidence_level": "sensor.energyhub_grid_confidence",
+    "house_load_unchanged_minutes": (
+        "sensor.energyhub_house_load_unchanged"
+    ),
+    "daily_grid_import": "sensor.energyhub_daily_summary_grid_import",
+}
+
+
 def make_client(options):
     client = mqtt.Client(client_id="energy_hub_powmr")
     client.username_pw_set(
@@ -45,6 +91,7 @@ def publish_discovery(client, device_name):
         payload = {
             "name": name,
             "unique_id": unique_id,
+            "default_entity_id": POWMR_DEFAULT_ENTITY_IDS[key],
             "state_topic": f"{BASE_TOPIC}/{key}/state",
             "availability": [
                 {"topic": ENERGYHUB_AVAILABILITY_TOPIC},
@@ -284,7 +331,7 @@ def publish_daily_summary_discovery(client):
             "measurement",
         ),
         "daily_grid_import": (
-            "Daily Grid Import Estimated",
+            "Daily Summary Grid Import",
             "kWh",
             "energy",
             "measurement",
@@ -563,9 +610,17 @@ def _publish_sensor_discovery(client, device, sensors):
         device_class,
         state_class,
     ) in sensors.items():
+        default_entity_id = (
+            ENERGYHUB_DEFAULT_ENTITY_ID_OVERRIDES.get(
+                key,
+                f"sensor.energyhub_{key}",
+            )
+        )
+
         payload = {
             "name": name,
             "unique_id": f"energyhub_{key}",
+            "default_entity_id": default_entity_id,
             "state_topic": f"{BASE_TOPIC}/{key}/state",
             "availability_topic": ENERGYHUB_AVAILABILITY_TOPIC,
             "device": device,
