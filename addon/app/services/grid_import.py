@@ -34,6 +34,12 @@ class GridImportService:
         self.last_update_monotonic = None
         self.last_saved_total_kwh = 0.0
 
+        # Completed-day totals wait here until Daily Summary has reconciled
+        # its historical record. Keeping this queue in Grid Import persistence
+        # makes the hand-off survive an add-on restart immediately after
+        # midnight.
+        self.pending_day_finalizations = {}
+
         self.load()
 
     @property
@@ -63,6 +69,12 @@ class GridImportService:
                 data.get(
                     "yesterday_energy_kwh",
                     0.0,
+                )
+            )
+
+            self.pending_day_finalizations = (
+                self._load_pending_day_finalizations(
+                    data.get("pending_day_finalizations", {})
                 )
             )
 
@@ -142,6 +154,10 @@ class GridImportService:
 
                 if stored_date:
                     self.yesterday_energy_kwh = completed_total
+                    self._queue_day_finalization(
+                        stored_date,
+                        completed_total,
+                    )
 
                 self.date = today
                 self._reset_today()
@@ -192,6 +208,12 @@ class GridImportService:
                 self.sub_battery_accounted_kwh,
                 6,
             ),
+            "pending_day_finalizations": {
+                date: round(value, 6)
+                for date, value in sorted(
+                    self.pending_day_finalizations.items()
+                )
+            },
             "timestamp": int(time.time()),
         }
 
@@ -388,6 +410,11 @@ class GridImportService:
             f"{self.date}={completed_total:.3f} kWh"
         )
 
+        self._queue_day_finalization(
+            self.date,
+            completed_total,
+        )
+
         self.yesterday_energy_kwh = completed_total
         self.date = today
         self._reset_today()
@@ -436,6 +463,74 @@ class GridImportService:
                 3,
             ),
         }
+
+    def get_pending_day_finalizations(self):
+        return tuple(
+            sorted(
+                self.pending_day_finalizations.items()
+            )
+        )
+
+    def mark_day_finalization_handled(self, completed_date):
+        if completed_date not in self.pending_day_finalizations:
+            return False
+
+        self.pending_day_finalizations.pop(completed_date, None)
+        self.save()
+
+        log(
+            "Grid import day finalization handled: "
+            f"{completed_date}"
+        )
+        return True
+
+    def _queue_day_finalization(
+        self,
+        completed_date,
+        completed_total,
+    ):
+        if not completed_date:
+            return
+
+        try:
+            datetime.strptime(completed_date, "%Y-%m-%d")
+            numeric_total = max(0.0, float(completed_total))
+        except (TypeError, ValueError):
+            log(
+                "Grid import ignored invalid completed day: "
+                f"date={completed_date}, total={completed_total}"
+            )
+            return
+
+        self.pending_day_finalizations[completed_date] = (
+            numeric_total
+        )
+
+        log(
+            "Grid import queued Daily Summary finalization: "
+            f"{completed_date}={numeric_total:.3f} kWh"
+        )
+
+    @staticmethod
+    def _load_pending_day_finalizations(raw_pending):
+        if not isinstance(raw_pending, dict):
+            return {}
+
+        pending = {}
+
+        for completed_date, completed_total in raw_pending.items():
+            try:
+                datetime.strptime(completed_date, "%Y-%m-%d")
+                numeric_total = max(
+                    0.0,
+                    float(completed_total),
+                )
+            except (TypeError, ValueError):
+                continue
+
+            pending[completed_date] = numeric_total
+
+        return pending
 
     @staticmethod
     def _valid_number(value):

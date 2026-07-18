@@ -323,6 +323,96 @@ class DailySummaryService:
             ),
         }
 
+    def finalize_grid_import(
+        self,
+        summary_date,
+        final_energy_kwh,
+    ):
+        try:
+            datetime.strptime(summary_date, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            log(
+                "Daily summary ignored Grid Import finalization "
+                f"with invalid date: {summary_date}"
+            )
+            return "invalid"
+
+        try:
+            final_energy_kwh = float(final_energy_kwh)
+        except (TypeError, ValueError):
+            final_energy_kwh = float("nan")
+
+        if (
+            not math.isfinite(final_energy_kwh)
+            or final_energy_kwh < 0
+        ):
+            log(
+                "Daily summary ignored Grid Import finalization "
+                f"with invalid value: {final_energy_kwh}"
+            )
+            return "invalid"
+
+        existing = self.history.get(summary_date)
+
+        if not existing:
+            log(
+                "Daily summary cannot reconcile finalized Grid Import: "
+                f"no snapshot for {summary_date}; "
+                f"final value={final_energy_kwh:.3f} kWh remains "
+                "available in Grid Import history"
+            )
+            return "missing"
+
+        final_energy_kwh = round(final_energy_kwh, 3)
+
+        try:
+            existing_energy_kwh = round(
+                float(
+                    existing.get(
+                        "grid_import_estimated_kwh",
+                        0.0,
+                    )
+                ),
+                3,
+            )
+        except (TypeError, ValueError):
+            existing_energy_kwh = None
+
+        if existing_energy_kwh == final_energy_kwh:
+            if (
+                self.last_snapshot
+                and self.last_snapshot.get("date")
+                == summary_date
+            ):
+                self.last_snapshot = existing
+
+            log(
+                "Daily summary Grid Import already finalized: "
+                f"{summary_date}={final_energy_kwh:.3f} kWh"
+            )
+            return "unchanged"
+
+        updated = dict(existing)
+        updated["grid_import_estimated_kwh"] = final_energy_kwh
+        updated["grid_import_finalized_at"] = int(time.time())
+
+        self.history[summary_date] = updated
+
+        if (
+            self.last_snapshot
+            and self.last_snapshot.get("date") == summary_date
+        ):
+            self.last_snapshot = updated
+
+        self.save()
+
+        log(
+            "Daily summary Grid Import finalized: "
+            f"{summary_date} "
+            f"{existing_energy_kwh} -> {final_energy_kwh:.3f} kWh"
+        )
+        return "updated"
+
     @staticmethod
     def _numeric_value(value):
         try:

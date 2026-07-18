@@ -66,7 +66,6 @@ from app.utils.logger import log
 
 INVERTER_WARNING_INTERVAL_SECONDS = 60
 INVERTER_SETTINGS_INTERVAL_SECONDS = 60
-STARTUP_SETTINGS_RETRY_SECONDS = 10
 PANIC_EVALUATION_INTERVAL_SECONDS = 15 * 60
 
 HYBRID_TARGET_SOC = 80
@@ -187,6 +186,34 @@ def main():
             client,
             inverter_controller,
         )
+
+    def reconcile_grid_import_finalizations():
+        daily_summary_changed = False
+
+        for (
+            completed_date,
+            final_energy_kwh,
+        ) in grid_import.get_pending_day_finalizations():
+            result = daily_summary.finalize_grid_import(
+                completed_date,
+                final_energy_kwh,
+            )
+
+            if result == "invalid":
+                log(
+                    "Grid import finalization remains pending: "
+                    f"{completed_date}"
+                )
+                continue
+
+            if result == "updated":
+                daily_summary_changed = True
+
+            grid_import.mark_day_finalization_handled(
+                completed_date
+            )
+
+        return daily_summary_changed
 
     def queue_mode_request(requested_mode):
         # MQTT callbacks run in the Paho network thread while requests are
@@ -685,6 +712,8 @@ def main():
     publish_system_health_discovery(client)
     publish_daily_summary_discovery(client)
 
+    reconcile_grid_import_finalizations()
+
     publish_daily_summary(
         client,
         daily_summary,
@@ -776,15 +805,9 @@ def main():
 
                 last_warning_read = now
 
-            settings_read_interval = (
-                INVERTER_SETTINGS_INTERVAL_SECONDS
-                if startup_reconstruction_complete
-                else STARTUP_SETTINGS_RETRY_SECONDS
-            )
-
             if (
                 now - last_settings_read
-                >= settings_read_interval
+                >= INVERTER_SETTINGS_INTERVAL_SECONDS
             ):
                 try:
                     settings_data = inverter.read_settings()
@@ -879,6 +902,12 @@ def main():
                     output_power_w=state.load_power,
                     battery_soc=state.battery_soc,
                 )
+
+                if reconcile_grid_import_finalizations():
+                    publish_daily_summary(
+                        client,
+                        daily_summary,
+                    )
 
                 publish_grid_import(
                     client,
