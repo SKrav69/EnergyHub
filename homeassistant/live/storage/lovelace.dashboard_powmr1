@@ -428,15 +428,6 @@
                       "features_position": "bottom"
                     },
                     {
-                      "type": "tile",
-                      "entity": "input_boolean.energyhub_away_mode",
-                      "name": "Away Mode",
-                      "icon": "mdi:home-export-outline",
-                      "color": "orange",
-                      "vertical": false,
-                      "features_position": "bottom"
-                    },
-                    {
                       "type": "button",
                       "entity": "script.energyhub_start_panic",
                       "name": "Start Panic",
