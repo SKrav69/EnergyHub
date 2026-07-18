@@ -1,4 +1,7 @@
+import json
+import os
 import time
+from datetime import datetime
 
 from app.utils.logger import log
 
@@ -27,14 +30,39 @@ MENU_01_VERIFY_DELAY_SECONDS = 1
 
 MODE_SETTLE_DELAY_SECONDS = 2
 
+STATE_SCHEMA_VERSION = 1
+DEFAULT_STATE_PATH = "/data/inverter_controller_state.json"
+
+VALID_CONFIRMED_MODES = {
+    "unknown",
+    "solar",
+    "hybrid_charging",
+    "hybrid_grid_hold",
+    "panic",
+}
+
+VALID_MENU_16_PRIORITIES = {
+    "unknown",
+    "SNU",
+    "OSO",
+    "CSO",
+}
+
 
 class InverterController:
-    def __init__(self, inverter):
+    def __init__(self, inverter, state_path=DEFAULT_STATE_PATH):
         self.inverter = inverter
+        self.state_path = state_path
 
+        # Runtime mode is deliberately unknown until Menu 01 is read from
+        # the inverter and reconciled with the persisted Menu 16/context.
         self.mode = "unknown"
+        self.confirmed_mode = "unknown"
         self.known_charger_priority = "unknown"
+        self.panic_target_soc = None
         self.last_error = None
+
+        self._load_state()
 
     def mqtt_values(self):
         return {
@@ -46,6 +74,10 @@ class InverterController:
         reasons = {
             "unknown": (
                 "Current inverter strategy is not confirmed"
+            ),
+            "inconsistent": (
+                self.last_error
+                or "Inverter settings do not match persisted strategy context"
             ),
             "transitioning": (
                 "Inverter settings are being changed"
@@ -75,6 +107,203 @@ class InverterController:
             self.mode,
             "Unknown operating mode",
         )
+
+    def _load_state(self):
+        if not self.state_path:
+            return
+
+        try:
+            with open(self.state_path, "r", encoding="utf-8") as file:
+                data = json.load(file)
+        except FileNotFoundError:
+            log("No persisted inverter controller state found")
+            return
+        except Exception as exc:
+            log(
+                "ERROR: Failed to load inverter controller state: "
+                f"{exc}"
+            )
+            return
+
+        if data.get("schema_version") != STATE_SCHEMA_VERSION:
+            log(
+                "Ignore unsupported inverter controller state schema: "
+                f"{data.get('schema_version')}"
+            )
+            return
+
+        confirmed_mode = data.get("confirmed_mode", "unknown")
+        if confirmed_mode not in VALID_CONFIRMED_MODES:
+            confirmed_mode = "unknown"
+
+        charger_priority = data.get(
+            "known_charger_priority",
+            "unknown",
+        )
+        if charger_priority not in VALID_MENU_16_PRIORITIES:
+            charger_priority = "unknown"
+
+        panic_target_soc = data.get("panic_target_soc")
+        if panic_target_soc is not None:
+            try:
+                panic_target_soc = int(panic_target_soc)
+            except (TypeError, ValueError):
+                panic_target_soc = None
+
+            if not 1 <= panic_target_soc <= 100:
+                panic_target_soc = None
+
+        self.confirmed_mode = confirmed_mode
+        self.known_charger_priority = charger_priority
+        self.panic_target_soc = panic_target_soc
+
+        log(
+            "Inverter controller state loaded: "
+            f"mode={self.confirmed_mode}, "
+            f"Menu 16={self.known_charger_priority}, "
+            f"panic_target={self.panic_target_soc}"
+        )
+
+    def _persist_state(self):
+        if not self.state_path:
+            return True
+
+        directory = os.path.dirname(self.state_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+
+        payload = {
+            "schema_version": STATE_SCHEMA_VERSION,
+            "confirmed_mode": self.confirmed_mode,
+            "known_charger_priority": self.known_charger_priority,
+            "panic_target_soc": self.panic_target_soc,
+            "updated_at": datetime.now().astimezone().isoformat(),
+        }
+
+        temporary_path = f"{self.state_path}.tmp"
+
+        try:
+            with open(
+                temporary_path,
+                "w",
+                encoding="utf-8",
+            ) as file:
+                json.dump(
+                    payload,
+                    file,
+                    indent=2,
+                    sort_keys=True,
+                )
+                file.flush()
+                os.fsync(file.fileno())
+
+            os.replace(temporary_path, self.state_path)
+            return True
+
+        except Exception as exc:
+            log(
+                "ERROR: Failed to persist inverter controller state: "
+                f"{exc}"
+            )
+
+            try:
+                if os.path.exists(temporary_path):
+                    os.remove(temporary_path)
+            except OSError:
+                pass
+
+            return False
+
+    def _confirm_mode(self, mode):
+        self.mode = mode
+        self.confirmed_mode = mode
+        self.last_error = None
+
+        if mode != "panic":
+            self.panic_target_soc = None
+
+        self._persist_state()
+
+    def set_panic_target_soc(self, target_soc):
+        try:
+            target_soc = int(target_soc)
+        except (TypeError, ValueError):
+            log(f"Ignore invalid Panic target SOC: {target_soc}")
+            return False
+
+        if not 1 <= target_soc <= 100:
+            log(f"Ignore invalid Panic target SOC: {target_soc}")
+            return False
+
+        self.panic_target_soc = target_soc
+        self._persist_state()
+        return True
+
+    def reconstruct_mode(self, actual_menu_01):
+        """Reconstruct the strategy without writing to the inverter.
+
+        Menu 01 is read from QPIRI. Menu 16 cannot be read on this inverter,
+        so the last successfully ACK-confirmed value is loaded from persisted
+        state. SUB+SNU still needs persisted strategy context to distinguish
+        Hybrid Charging from Panic.
+        """
+
+        remembered_menu_16 = self.known_charger_priority
+        previous_context = self.confirmed_mode
+
+        reconstructed_mode = None
+
+        if actual_menu_01 == "SBU" and remembered_menu_16 == "OSO":
+            reconstructed_mode = "solar"
+
+        elif actual_menu_01 == "SUB" and remembered_menu_16 == "OSO":
+            # SUB+OSO is a valid Grid Hold state only when persisted context
+            # shows that EnergyHub was already holding the grid or was in the
+            # process of moving from Hybrid Charging to Grid Hold. The same
+            # physical combination with Solar/Panic context can be a partial
+            # interrupted transition and must not be guessed.
+            if previous_context in {
+                "hybrid_charging",
+                "hybrid_grid_hold",
+            }:
+                reconstructed_mode = "hybrid_grid_hold"
+
+        elif actual_menu_01 == "SUB" and remembered_menu_16 == "SNU":
+            # A persisted Panic target is written before entering Panic, so it
+            # also allows recovery from a crash after the hardware transition
+            # completed but before the final mode confirmation was persisted.
+            if self.panic_target_soc is not None:
+                reconstructed_mode = "panic"
+
+            elif previous_context == "hybrid_charging":
+                reconstructed_mode = "hybrid_charging"
+
+        if reconstructed_mode is None:
+            self.mode = "inconsistent"
+            self.last_error = (
+                "Startup reconstruction is incomplete: "
+                f"Menu 01={actual_menu_01}, "
+                f"remembered Menu 16={remembered_menu_16}, "
+                f"persisted mode={previous_context}, "
+                f"panic target={self.panic_target_soc}"
+            )
+
+            log(self.last_error)
+            return False
+
+        # A physical, confidently reconstructed combination becomes the new
+        # confirmed context. This also completes an interrupted persistence
+        # update after a successful hardware command.
+        self._confirm_mode(reconstructed_mode)
+
+        log(
+            "Startup strategy reconstructed: "
+            f"mode={self.mode}, "
+            f"Menu 01={actual_menu_01}, "
+            f"Menu 16={remembered_menu_16}, "
+            f"panic target={self.panic_target_soc}"
+        )
+        return True
 
     def _settle(self):
         log(
@@ -148,6 +377,11 @@ class InverterController:
             if acknowledged:
                 self.known_charger_priority = priority
                 self.last_error = None
+
+                # Menu 16 cannot be queried on this inverter. Persist the last
+                # successfully ACK-confirmed value immediately, even before a
+                # multi-command strategy transition is fully complete.
+                self._persist_state()
 
                 log(
                     "Menu 16 command accepted: "
@@ -297,8 +531,7 @@ class InverterController:
 
             return False
 
-        self.mode = "hybrid_charging"
-        self.last_error = None
+        self._confirm_mode("hybrid_charging")
 
         log(
             "Hybrid Charging active: "
@@ -384,8 +617,7 @@ class InverterController:
 
             return False
 
-        self.mode = "hybrid_grid_hold"
-        self.last_error = None
+        self._confirm_mode("hybrid_grid_hold")
 
         log(
             "Hybrid Grid Hold active: "
@@ -397,6 +629,9 @@ class InverterController:
 
     def enter_panic(self):
         self.mode = "transitioning"
+
+        if self.panic_target_soc is None:
+            self.set_panic_target_soc(95)
 
         log(
             "Starting transition to Panic: "
@@ -420,8 +655,7 @@ class InverterController:
 
             return False
 
-        self.mode = "panic"
-        self.last_error = None
+        self._confirm_mode("panic")
 
         log(
             "Panic active: "
@@ -446,8 +680,7 @@ class InverterController:
         menu_01_error = None if menu_01_ok else self.last_error
 
         if menu_16_ok and menu_01_ok:
-            self.mode = "solar"
-            self.last_error = None
+            self._confirm_mode("solar")
 
             log(
                 "Solar active: "

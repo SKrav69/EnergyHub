@@ -381,40 +381,6 @@
         payload: evaluate_hybrid
         retain: false
   mode: single
-- id: '1783705227008'
-  alias: EnergyHub - Restore Mode After Restart
-  description: Restores the correct inverter strategy after an EnergyHub restart.
-  triggers:
-  - trigger: state
-    entity_id: sensor.energyhub_operating_mode
-    to: unknown
-  conditions:
-  - condition: state
-    entity_id: input_boolean.energyhub_autopilot
-    state: 'on'
-  actions:
-  - delay:
-      seconds: 10
-  - choose:
-    - conditions:
-      - condition: template
-        value_template: '{% set now_time = now().strftime(''%H:%M:%S'') %} {{ now_time
-          >= ''23:50:00'' or now_time < ''07:00:00'' }}
-
-          '
-      sequence:
-      - action: mqtt.publish
-        data:
-          topic: energyhub/input/ha/inverter_mode
-          payload: hybrid
-          retain: false
-    default:
-    - action: mqtt.publish
-      data:
-        topic: energyhub/input/ha/inverter_mode
-        payload: solar
-        retain: false
-  mode: restart
 - id: '1783953087633'
   alias: EnergyHub - Mode Notifications
   description: Shows notifications when EnergyHub automatically activates Hybrid or

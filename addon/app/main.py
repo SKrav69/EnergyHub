@@ -66,6 +66,7 @@ from app.utils.logger import log
 
 INVERTER_WARNING_INTERVAL_SECONDS = 60
 INVERTER_SETTINGS_INTERVAL_SECONDS = 60
+STARTUP_SETTINGS_RETRY_SECONDS = 10
 PANIC_EVALUATION_INTERVAL_SECONDS = 15 * 60
 
 HYBRID_TARGET_SOC = 80
@@ -78,6 +79,7 @@ MENU_01_QPIRI_MAP = {
 
 AUTOPILOT_SAFE_RECOVERY_MODES = {
     "unknown",
+    "inconsistent",
     "hybrid_charging",
     "hybrid_grid_hold",
     "panic",
@@ -143,7 +145,10 @@ def main():
     mode_requests = queue.Queue(maxsize=1)
     mode_request_lock = threading.Lock()
 
-    panic_target_soc = PANIC_DEFAULT_TARGET_SOC
+    panic_target_soc = (
+        inverter_controller.panic_target_soc
+        or PANIC_DEFAULT_TARGET_SOC
+    )
 
     last_warning_read = 0
     last_settings_read = 0
@@ -151,6 +156,10 @@ def main():
 
     hybrid_evaluation_requested = False
     panic_evaluation_requested = False
+
+    startup_reconstruction_complete = False
+    autopilot_state_received = False
+    startup_recovery_decided = False
 
     bus = EventBus()
     bus.subscribe(grid.handle_inverter_state)
@@ -217,6 +226,47 @@ def main():
 
         return True
 
+    def maybe_handle_startup_recovery():
+        nonlocal startup_recovery_decided
+
+        if startup_recovery_decided:
+            return
+
+        if not startup_reconstruction_complete:
+            return
+
+        if not autopilot_state_received:
+            return
+
+        if inverter_controller.mode not in {
+            "unknown",
+            "inconsistent",
+        }:
+            startup_recovery_decided = True
+
+            log(
+                "Startup reconstruction accepted without inverter writes: "
+                f"mode={inverter_controller.mode}"
+            )
+            return
+
+        if autopilot.is_enabled():
+            startup_recovery_decided = True
+
+            log(
+                "Startup reconstruction is incomplete while Autopilot is "
+                "enabled. Queueing one safe Solar recovery."
+            )
+            queue_mode_request("safe_solar")
+            return
+
+        startup_recovery_decided = True
+
+        log(
+            "Startup reconstruction is incomplete and Autopilot is "
+            "disabled. Inverter settings will not be changed automatically."
+        )
+
     def process_mode_request():
         nonlocal hybrid_evaluation_requested
         nonlocal panic_target_soc
@@ -278,6 +328,9 @@ def main():
 
         elif requested_mode == "panic":
             panic_target_soc = PANIC_DEFAULT_TARGET_SOC
+            inverter_controller.set_panic_target_soc(
+                panic_target_soc
+            )
 
             log(
                 "Manual Panic requested: "
@@ -288,6 +341,9 @@ def main():
 
         elif requested_mode == "panic_80":
             panic_target_soc = 80
+            inverter_controller.set_panic_target_soc(
+                panic_target_soc
+            )
 
             log(
                 "Automatic Panic requested: "
@@ -298,6 +354,9 @@ def main():
 
         elif requested_mode == "panic_95":
             panic_target_soc = 95
+            inverter_controller.set_panic_target_soc(
+                panic_target_soc
+            )
 
             log(
                 "Automatic Panic requested: "
@@ -476,6 +535,8 @@ def main():
             )
 
     def on_message(client, userdata, msg):
+        nonlocal autopilot_state_received
+
         topic = msg.topic
         payload = msg.payload.decode("utf-8")
 
@@ -490,6 +551,8 @@ def main():
             was_enabled = autopilot.is_enabled()
 
             if autopilot.update(payload):
+                autopilot_state_received = True
+
                 publish_autopilot(
                     client,
                     autopilot,
@@ -500,6 +563,22 @@ def main():
                     and not autopilot.is_enabled()
                 ):
                     queue_mode_request("safe_solar")
+
+                elif (
+                    not was_enabled
+                    and autopilot.is_enabled()
+                    and startup_reconstruction_complete
+                    and startup_recovery_decided
+                    and inverter_controller.mode
+                    in {"unknown", "inconsistent"}
+                ):
+                    log(
+                        "Autopilot enabled while inverter strategy is "
+                        "unconfirmed. Queueing safe Solar recovery."
+                    )
+                    queue_mode_request("safe_solar")
+
+                maybe_handle_startup_recovery()
 
             return
 
@@ -633,7 +712,7 @@ def main():
 
     publish_charger_source_priority(
         client,
-        "unknown",
+        inverter_controller.known_charger_priority,
     )
 
     publish_operating_mode(
@@ -697,9 +776,15 @@ def main():
 
                 last_warning_read = now
 
+            settings_read_interval = (
+                INVERTER_SETTINGS_INTERVAL_SECONDS
+                if startup_reconstruction_complete
+                else STARTUP_SETTINGS_RETRY_SECONDS
+            )
+
             if (
                 now - last_settings_read
-                >= INVERTER_SETTINGS_INTERVAL_SECONDS
+                >= settings_read_interval
             ):
                 try:
                     settings_data = inverter.read_settings()
@@ -728,6 +813,23 @@ def main():
                         f"Menu 01={menu_01}, "
                         f"Menu 16={menu_16}"
                     )
+
+                    if (
+                        not startup_reconstruction_complete
+                        and menu_01 != "unknown"
+                    ):
+                        inverter_controller.reconstruct_mode(
+                            menu_01
+                        )
+
+                        startup_reconstruction_complete = True
+                        panic_target_soc = (
+                            inverter_controller.panic_target_soc
+                            or PANIC_DEFAULT_TARGET_SOC
+                        )
+
+                        publish_controller_state()
+                        maybe_handle_startup_recovery()
 
                 except Exception as e:
                     log(
