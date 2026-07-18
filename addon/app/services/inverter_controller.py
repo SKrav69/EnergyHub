@@ -1,8 +1,8 @@
 import json
-import os
 import time
 from datetime import datetime
 
+from app.utils.json_store import atomic_write_json
 from app.utils.logger import log
 
 
@@ -168,10 +168,6 @@ class InverterController:
         if not self.state_path:
             return True
 
-        directory = os.path.dirname(self.state_path)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-
         payload = {
             "schema_version": STATE_SCHEMA_VERSION,
             "confirmed_mode": self.confirmed_mode,
@@ -180,24 +176,13 @@ class InverterController:
             "updated_at": datetime.now().astimezone().isoformat(),
         }
 
-        temporary_path = f"{self.state_path}.tmp"
-
         try:
-            with open(
-                temporary_path,
-                "w",
-                encoding="utf-8",
-            ) as file:
-                json.dump(
-                    payload,
-                    file,
-                    indent=2,
-                    sort_keys=True,
-                )
-                file.flush()
-                os.fsync(file.fileno())
-
-            os.replace(temporary_path, self.state_path)
+            atomic_write_json(
+                self.state_path,
+                payload,
+                indent=2,
+                sort_keys=True,
+            )
             return True
 
         except Exception as exc:
@@ -205,13 +190,6 @@ class InverterController:
                 "ERROR: Failed to persist inverter controller state: "
                 f"{exc}"
             )
-
-            try:
-                if os.path.exists(temporary_path):
-                    os.remove(temporary_path)
-            except OSError:
-                pass
-
             return False
 
     def _confirm_mode(self, mode):

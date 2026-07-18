@@ -2,6 +2,7 @@ import json
 import time
 from pathlib import Path
 
+from app.utils.json_store import atomic_write_json
 from app.utils.logger import log
 
 
@@ -38,7 +39,12 @@ class GridHistoryService:
         }
 
         try:
-            GRID_HISTORY_FILE.write_text(json.dumps(data, ensure_ascii=False))
+            atomic_write_json(
+                GRID_HISTORY_FILE,
+                data,
+                ensure_ascii=False,
+                indent=None,
+            )
         except Exception as e:
             log(f"Failed to save grid history: {e}")
 

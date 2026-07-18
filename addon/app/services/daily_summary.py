@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from app.utils.json_store import atomic_write_json
 from app.utils.logger import log
 
 
@@ -54,12 +55,11 @@ class DailySummaryService:
         }
 
         try:
-            DAILY_SUMMARY_FILE.write_text(
-                json.dumps(
-                    data,
-                    ensure_ascii=False,
-                    indent=2,
-                )
+            atomic_write_json(
+                DAILY_SUMMARY_FILE,
+                data,
+                ensure_ascii=False,
+                indent=2,
             )
 
         except Exception as e:

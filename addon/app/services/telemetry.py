@@ -1,8 +1,9 @@
-import json
+import time
 
 from app.config import LAST_FILE
 from app.models.inverter_state import InverterState
 from app.mqtt.publisher import publish_values
+from app.utils.json_store import atomic_write_json
 from app.utils.logger import log
 
 
@@ -11,6 +12,8 @@ REQUIRED_FIELDS = [
     "ac_output_active_power",
     "pv1_charging_power",
 ]
+
+LAST_SNAPSHOT_SAVE_INTERVAL_SECONDS = 60
 
 
 def _to_float(value):
@@ -26,6 +29,7 @@ class TelemetryService:
     def __init__(self, mqtt_client):
         self.mqtt_client = mqtt_client
         self.previous = {}
+        self.last_snapshot_save_monotonic = None
 
     def create_state(self, data):
         missing = [key for key in REQUIRED_FIELDS if data.get(key) is None]
@@ -61,7 +65,7 @@ class TelemetryService:
         published = publish_values(self.mqtt_client, data, self.previous)
         self.previous.update(data)
 
-        LAST_FILE.write_text(json.dumps(data, ensure_ascii=False))
+        self._save_last_snapshot(data)
 
         log(
             "OK | "
@@ -73,3 +77,28 @@ class TelemetryService:
         )
 
         return state
+
+    def _save_last_snapshot(self, data):
+        now_monotonic = time.monotonic()
+
+        if (
+            self.last_snapshot_save_monotonic is not None
+            and now_monotonic - self.last_snapshot_save_monotonic
+            < LAST_SNAPSHOT_SAVE_INTERVAL_SECONDS
+        ):
+            return
+
+        try:
+            atomic_write_json(
+                LAST_FILE,
+                data,
+                ensure_ascii=False,
+                indent=None,
+            )
+            self.last_snapshot_save_monotonic = now_monotonic
+
+        except Exception as e:
+            log(
+                "Failed to save last telemetry snapshot: "
+                f"{e}"
+            )

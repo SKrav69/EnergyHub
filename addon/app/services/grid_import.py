@@ -3,12 +3,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from app.utils.json_store import atomic_write_json
 from app.utils.logger import log
 
 
 GRID_IMPORT_FILE = Path("/data/grid_import.json")
 SCHEMA_VERSION = 2
 BATTERY_CAPACITY_KWH = 16.0
+PERSIST_INTERVAL_SECONDS = 60
 
 SUB_OPERATING_MODES = {
     "hybrid_charging",
@@ -32,7 +34,7 @@ class GridImportService:
         self.sub_battery_accounted_kwh = 0.0
 
         self.last_update_monotonic = None
-        self.last_saved_total_kwh = 0.0
+        self.last_save_monotonic = None
 
         # Completed-day totals wait here until Daily Summary has reconciled
         # its historical record. Keeping this queue in Grid Import persistence
@@ -131,9 +133,7 @@ class GridImportService:
                     )
                 )
 
-                self.last_saved_total_kwh = (
-                    self.daily_energy_kwh
-                )
+                self.last_save_monotonic = time.monotonic()
 
                 log(
                     "Grid import loaded: "
@@ -218,17 +218,13 @@ class GridImportService:
         }
 
         try:
-            GRID_IMPORT_FILE.write_text(
-                json.dumps(
-                    data,
-                    ensure_ascii=False,
-                    indent=2,
-                )
+            atomic_write_json(
+                GRID_IMPORT_FILE,
+                data,
+                ensure_ascii=False,
+                indent=2,
             )
-
-            self.last_saved_total_kwh = (
-                self.daily_energy_kwh
-            )
+            self.last_save_monotonic = time.monotonic()
 
         except Exception as e:
             log(
@@ -277,7 +273,9 @@ class GridImportService:
             return True
 
         if not is_sub:
-            if self.sub_active:
+            was_sub_active = self.sub_active
+
+            if was_sub_active:
                 log(
                     "Grid import accounting stopped: "
                     f"mode={operating_mode}, "
@@ -287,7 +285,10 @@ class GridImportService:
             self._stop_sub_interval()
             self.current_power_w = 0.0
             self.last_update_monotonic = None
-            self._save_if_needed(force=True)
+
+            if was_sub_active:
+                self._save_if_needed(force=True)
+
             return True
 
         if not self.sub_active:
@@ -435,15 +436,17 @@ class GridImportService:
         self.sub_battery_accounted_kwh = 0.0
 
         self.last_update_monotonic = None
-        self.last_saved_total_kwh = 0.0
+        self.last_save_monotonic = None
 
     def _save_if_needed(self, force=False):
+        now_monotonic = time.monotonic()
+
         if (
             force
+            or self.last_save_monotonic is None
             or (
-                self.daily_energy_kwh
-                - self.last_saved_total_kwh
-                >= 0.001
+                now_monotonic - self.last_save_monotonic
+                >= PERSIST_INTERVAL_SECONDS
             )
         ):
             self.save()
