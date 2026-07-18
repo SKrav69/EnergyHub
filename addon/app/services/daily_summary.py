@@ -1,4 +1,5 @@
 import json
+import math
 import time
 from datetime import datetime
 from pathlib import Path
@@ -7,6 +8,12 @@ from app.utils.logger import log
 
 
 DAILY_SUMMARY_FILE = Path("/data/daily_summary.json")
+
+REQUIRED_SNAPSHOT_INPUTS = (
+    "daily_house_consumption",
+    "solar_forecast_today",
+    "daily_solar_surplus_estimated",
+)
 
 
 class DailySummaryService:
@@ -62,13 +69,9 @@ class DailySummaryService:
             )
 
     def update_input(self, key, value):
-        try:
-            numeric_value = round(
-                float(value),
-                2,
-            )
+        numeric_value = self._numeric_value(value)
 
-        except Exception:
+        if numeric_value is None:
             log(
                 "Daily summary ignored invalid input "
                 f"{key}: {value}"
@@ -82,37 +85,159 @@ class DailySummaryService:
             f"{key}={numeric_value}"
         )
 
-        if self.ready():
-            self.snapshot()
-
+        # Input updates are intentionally not snapshots. Home Assistant
+        # publishes the inputs one MQTT message at a time, so snapshotting
+        # here could combine values from different publication cycles.
         return True
 
-    def ready(self):
-        required = [
-            "daily_house_consumption",
-            "solar_forecast_today",
-            "daily_solar_surplus_estimated",
-        ]
+    def update_snapshot(self, payload):
+        try:
+            data = json.loads(payload)
+        except (TypeError, ValueError, json.JSONDecodeError) as e:
+            log(
+                "Daily summary ignored invalid snapshot payload: "
+                f"{e}"
+            )
+            return False
 
-        return all(
-            key in self.inputs
-            for key in required
-        )
+        if not isinstance(data, dict):
+            log(
+                "Daily summary ignored snapshot payload: "
+                "JSON object required"
+            )
+            return False
 
-    def snapshot(self):
+        snapshot_date = str(data.get("date", "")).strip()
+
+        try:
+            datetime.strptime(snapshot_date, "%Y-%m-%d")
+        except ValueError:
+            log(
+                "Daily summary ignored snapshot with invalid date: "
+                f"{snapshot_date}"
+            )
+            return False
+
         today = datetime.now().strftime("%Y-%m-%d")
 
+        if snapshot_date != today:
+            log(
+                "Daily summary ignored stale snapshot: "
+                f"date={snapshot_date}, today={today}"
+            )
+            return False
+
+        source_timestamp = data.get("timestamp")
+
+        if source_timestamp in (None, ""):
+            log(
+                "Daily summary ignored snapshot without timestamp"
+            )
+            return False
+
+        snapshot_inputs = {}
+
+        for key in REQUIRED_SNAPSHOT_INPUTS:
+            numeric_value = self._numeric_value(data.get(key))
+
+            if numeric_value is None:
+                log(
+                    "Daily summary ignored incomplete snapshot: "
+                    f"invalid {key}={data.get(key)}"
+                )
+                return False
+
+            snapshot_inputs[key] = numeric_value
+
+        forecast_tomorrow = self._numeric_value(
+            data.get("solar_forecast_tomorrow")
+        )
+
+        self.inputs.update(snapshot_inputs)
+
+        if forecast_tomorrow is not None:
+            self.inputs[
+                "solar_forecast_tomorrow"
+            ] = forecast_tomorrow
+
+        return self.snapshot(
+            snapshot_date=snapshot_date,
+            snapshot_inputs=snapshot_inputs,
+            source_timestamp=str(source_timestamp),
+        )
+
+    def ready(self, inputs=None):
+        values = self.inputs if inputs is None else inputs
+
+        return all(
+            key in values
+            for key in REQUIRED_SNAPSHOT_INPUTS
+        )
+
+    def snapshot(
+        self,
+        *,
+        snapshot_date=None,
+        snapshot_inputs=None,
+        source_timestamp=None,
+    ):
+        values = (
+            self.inputs
+            if snapshot_inputs is None
+            else snapshot_inputs
+        )
+
+        if not self.ready(values):
+            missing = [
+                key
+                for key in REQUIRED_SNAPSHOT_INPUTS
+                if key not in values
+            ]
+
+            log(
+                "Daily summary snapshot skipped: "
+                f"missing inputs={','.join(missing)}"
+            )
+            return False
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        snapshot_date = snapshot_date or today
+
+        if snapshot_date != today:
+            log(
+                "Daily summary snapshot skipped: "
+                f"date={snapshot_date}, today={today}"
+            )
+            return False
+
+        existing = self.history.get(snapshot_date)
+
+        if (
+            existing
+            and source_timestamp is not None
+            and existing.get("source_timestamp")
+            == source_timestamp
+        ):
+            self.last_snapshot = existing
+
+            log(
+                "Daily summary snapshot already processed "
+                f"for {snapshot_date}"
+            )
+            return True
+
         snapshot = {
-            "date": today,
+            "date": snapshot_date,
             "timestamp": int(time.time()),
+            "source_timestamp": source_timestamp,
             "house_consumption_kwh": (
-                self.inputs["daily_house_consumption"]
+                values["daily_house_consumption"]
             ),
             "solar_forecast_kwh": (
-                self.inputs["solar_forecast_today"]
+                values["solar_forecast_today"]
             ),
             "solar_surplus_estimated_kwh": (
-                self.inputs[
+                values[
                     "daily_solar_surplus_estimated"
                 ]
             ),
@@ -125,8 +250,6 @@ class DailySummaryService:
                 .availability_percent(24)
             ),
         }
-
-        existing = self.history.get(today)
 
         if existing:
             same_values = (
@@ -153,18 +276,19 @@ class DailySummaryService:
 
                 log(
                     "Daily summary snapshot unchanged "
-                    f"for {today}"
+                    f"for {snapshot_date}"
                 )
-                return
+                return True
 
-        self.history[today] = snapshot
+        self.history[snapshot_date] = snapshot
         self.last_snapshot = snapshot
         self.save()
 
         log(
-            "Daily summary snapshot stored "
-            f"for {today}"
+            "Daily summary atomic snapshot stored "
+            f"for {snapshot_date}"
         )
+        return True
 
     def mqtt_values(self):
         if not self.last_snapshot:
@@ -198,3 +322,15 @@ class DailySummaryService:
                 ]
             ),
         }
+
+    @staticmethod
+    def _numeric_value(value):
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        if not math.isfinite(numeric_value):
+            return None
+
+        return round(numeric_value, 2)

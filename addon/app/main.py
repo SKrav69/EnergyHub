@@ -516,6 +516,14 @@ def main():
             )
             return
 
+        if key == "daily_summary_snapshot":
+            if daily_summary.update_snapshot(payload):
+                publish_daily_summary(
+                    client,
+                    daily_summary,
+                )
+            return
+
         if key in {
             "solar_forecast_today",
             "solar_forecast_tomorrow",
@@ -531,11 +539,6 @@ def main():
         daily_summary.update_input(
             key,
             payload,
-        )
-
-        publish_daily_summary(
-            client,
-            daily_summary,
         )
 
     client.on_connect = on_connect

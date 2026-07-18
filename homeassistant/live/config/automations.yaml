@@ -246,8 +246,7 @@
   mode: restart
 - id: '1783245343717'
   alias: EnergyHub - Publish Daily Summary Inputs
-  description: Publishes EnergyHub decision inputs before 23:50 and refreshes the
-    final daily snapshot at 23:51.
+  description: Publishes decision inputs before 23:50 and one atomic Daily Summary snapshot at 23:51.
   triggers:
   - trigger: time
     at: '23:49:00'
@@ -275,9 +274,26 @@
   - action: mqtt.publish
     data:
       topic: energyhub/input/ha/daily_solar_surplus_estimated
-      payload: '{{ states(''input_number.energyhub_daily_solar_surplus_estimated'')
-        }}'
+      payload: '{{ states(''input_number.energyhub_daily_solar_surplus_estimated'') }}'
       retain: true
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: final_daily_snapshot
+      sequence:
+      - action: mqtt.publish
+        data:
+          topic: energyhub/input/ha/daily_summary_snapshot
+          payload: >-
+            {{ {
+              'date': now().strftime('%Y-%m-%d'),
+              'timestamp': as_timestamp(now()) | int,
+              'daily_house_consumption': states('sensor.powmr_10_2m_daily_house_consumption'),
+              'solar_forecast_today': states('sensor.solcast_pv_forecast_forecast_today'),
+              'solar_forecast_tomorrow': states('sensor.solcast_pv_forecast_forecast_tomorrow'),
+              'daily_solar_surplus_estimated': states('input_number.energyhub_daily_solar_surplus_estimated')
+            } | tojson }}
+          retain: true
   mode: single
 - id: '1784300000001'
   alias: EnergyHub - Publish Live Solcast Forecasts
