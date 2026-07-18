@@ -1,5 +1,6 @@
 import queue
 import subprocess
+import threading
 import time
 import traceback
 
@@ -140,6 +141,7 @@ def main():
     panic_decision = PanicDecisionEngine()
 
     mode_requests = queue.Queue(maxsize=1)
+    mode_request_lock = threading.Lock()
 
     panic_target_soc = PANIC_DEFAULT_TARGET_SOC
 
@@ -178,34 +180,53 @@ def main():
         )
 
     def queue_mode_request(requested_mode):
-        try:
-            mode_requests.get_nowait()
-        except queue.Empty:
-            pass
+        # MQTT callbacks run in the Paho network thread while requests are
+        # consumed in the main loop. The lock makes the read/replace/write
+        # operation atomic and prevents an ordinary request from replacing
+        # a pending safe Solar recovery.
+        with mode_request_lock:
+            try:
+                pending_mode = mode_requests.get_nowait()
+            except queue.Empty:
+                pending_mode = None
 
-        try:
+            if (
+                pending_mode == "safe_solar"
+                and requested_mode != "safe_solar"
+            ):
+                mode_requests.put_nowait(pending_mode)
+
+                log(
+                    "Preserved pending safe Solar recovery; "
+                    "ignored inverter mode request: "
+                    f"{requested_mode}"
+                )
+                return False
+
             mode_requests.put_nowait(requested_mode)
 
+        if requested_mode == "safe_solar":
+            log(
+                "Safe Solar recovery queued with priority"
+            )
+        else:
             log(
                 "Inverter mode request queued: "
                 f"{requested_mode}"
             )
 
-        except queue.Full:
-            log(
-                "Could not queue inverter mode request: "
-                f"{requested_mode}"
-            )
+        return True
 
     def process_mode_request():
         nonlocal hybrid_evaluation_requested
         nonlocal panic_target_soc
         nonlocal panic_evaluation_requested
 
-        try:
-            requested_mode = mode_requests.get_nowait()
-        except queue.Empty:
-            return
+        with mode_request_lock:
+            try:
+                requested_mode = mode_requests.get_nowait()
+            except queue.Empty:
+                return
 
         if requested_mode == "safe_solar":
             if (

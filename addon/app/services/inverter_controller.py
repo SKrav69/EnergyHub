@@ -317,11 +317,71 @@ class InverterController:
         )
 
         if not self.set_output_priority("SUB"):
-            self.mode = "transition_failed"
+            hold_error = (
+                self.last_error
+                or "Menu 01 could not be confirmed as SUB"
+            )
+
+            log(
+                "Hybrid Grid Hold transition failed: "
+                f"{hold_error}. Attempting Solar recovery."
+            )
+
+            recovered = self.restore_solar()
+
+            if recovered:
+                log(
+                    "Hybrid Grid Hold was not activated. "
+                    "Solar recovery succeeded."
+                )
+            else:
+                recovery_error = (
+                    self.last_error
+                    or "Solar recovery did not complete"
+                )
+
+                self.mode = "transition_failed"
+                self.last_error = (
+                    "Hybrid Grid Hold failed: "
+                    f"{hold_error}; Solar recovery failed: "
+                    f"{recovery_error}"
+                )
+                log(self.last_error)
+
             return False
 
         if not self.set_charger_priority("OSO"):
-            self.mode = "transition_failed"
+            hold_error = (
+                self.last_error
+                or "Menu 16 OSO command was not acknowledged"
+            )
+
+            log(
+                "Hybrid Grid Hold transition partially failed: "
+                f"{hold_error}. Attempting Solar recovery."
+            )
+
+            recovered = self.restore_solar()
+
+            if recovered:
+                log(
+                    "Hybrid Grid Hold was not activated. "
+                    "Solar recovery succeeded."
+                )
+            else:
+                recovery_error = (
+                    self.last_error
+                    or "Solar recovery did not complete"
+                )
+
+                self.mode = "transition_failed"
+                self.last_error = (
+                    "Hybrid Grid Hold failed: "
+                    f"{hold_error}; Solar recovery failed: "
+                    f"{recovery_error}"
+                )
+                log(self.last_error)
+
             return False
 
         self.mode = "hybrid_grid_hold"
@@ -380,7 +440,10 @@ class InverterController:
         )
 
         menu_16_ok = self.set_charger_priority("OSO")
+        menu_16_error = None if menu_16_ok else self.last_error
+
         menu_01_ok = self.set_output_priority("SBU")
+        menu_01_error = None if menu_01_ok else self.last_error
 
         if menu_16_ok and menu_01_ok:
             self.mode = "solar"
@@ -394,12 +457,26 @@ class InverterController:
             self._settle()
             return True
 
-        self.mode = "transition_failed"
+        errors = []
 
-        log(
+        if menu_16_error:
+            errors.append(f"Menu 16: {menu_16_error}")
+
+        if menu_01_error:
+            errors.append(f"Menu 01: {menu_01_error}")
+
+        self.mode = "transition_failed"
+        self.last_error = (
             "Solar recovery incomplete: "
-            f"menu_01_ok={menu_01_ok}, "
-            f"menu_16_ok={menu_16_ok}"
+            + (
+                "; ".join(errors)
+                if errors
+                else (
+                    f"menu_01_ok={menu_01_ok}, "
+                    f"menu_16_ok={menu_16_ok}"
+                )
+            )
         )
 
+        log(self.last_error)
         return False
