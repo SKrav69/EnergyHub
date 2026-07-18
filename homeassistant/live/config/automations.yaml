@@ -173,7 +173,7 @@
   mode: single
 - id: '1783103977336'
   alias: EnergyHub - Floor 3 Heat Pump Auto Off
-  description: Auto-off timer for 3rd floor heat pump plug
+  description: Auto-off timer for the 3rd floor heat pump plug
   triggers:
   - entity_id: switch.chuangmi_212a01_ea40_switch
     to: 'on'
@@ -191,6 +191,7 @@
       entity_id: timer.floor_3_heat_pump_auto_off
     id: timer_finished
     trigger: event
+  conditions: []
   actions:
   - choose:
     - conditions:
@@ -202,24 +203,28 @@
         entity_id: switch.chuangmi_212a01_ea40_switch
         state: 'on'
       - condition: template
-        value_template: '{{ states(''input_number.input_number_floor3_heat_pump_timer_hours'')
-          | int(0) > 0 }}
-
-          '
+        value_template: "{{\n  states(\n    'input_number.input_number_floor3_heat_pump_timer_hours'\n
+          \ ) | int(0) > 0\n}}\n"
       sequence:
       - target:
           entity_id: timer.floor_3_heat_pump_auto_off
         data:
-          duration: '{{ ''%02d:00:00'' % (states(''input_number.input_number_floor3_heat_pump_timer_hours'')
-            | int(0)) }}
-
-            '
+          duration: "{{\n  '%02d:00:00' %\n  (\n    states(\n      'input_number.input_number_floor3_heat_pump_timer_hours'\n
+            \   ) | int(0)\n  )\n}}\n"
         action: timer.start
     - conditions:
+      - condition: trigger
+        id: timer_changed
       - condition: template
-        value_template: '{{ trigger.id == ''pump_off'' }}
-
-          '
+        value_template: "{{\n  states(\n    'input_number.input_number_floor3_heat_pump_timer_hours'\n
+          \ ) | int(0) == 0\n}}\n"
+      sequence:
+      - target:
+          entity_id: timer.floor_3_heat_pump_auto_off
+        action: timer.cancel
+    - conditions:
+      - condition: trigger
+        id: pump_off
       sequence:
       - target:
           entity_id: timer.floor_3_heat_pump_auto_off
@@ -230,10 +235,8 @@
           value: 0
         action: input_number.set_value
     - conditions:
-      - condition: template
-        value_template: '{{ trigger.id == ''timer_finished'' }}
-
-          '
+      - condition: trigger
+        id: timer_finished
       sequence:
       - target:
           entity_id: switch.chuangmi_212a01_ea40_switch
@@ -246,7 +249,8 @@
   mode: restart
 - id: '1783245343717'
   alias: EnergyHub - Publish Daily Summary Inputs
-  description: Publishes decision inputs before 23:50 and one atomic Daily Summary snapshot at 23:51.
+  description: Publishes decision inputs before 23:50 and one atomic Daily Summary
+    snapshot at 23:51.
   triggers:
   - trigger: time
     at: '23:49:00'
@@ -274,7 +278,8 @@
   - action: mqtt.publish
     data:
       topic: energyhub/input/ha/daily_solar_surplus_estimated
-      payload: '{{ states(''input_number.energyhub_daily_solar_surplus_estimated'') }}'
+      payload: '{{ states(''input_number.energyhub_daily_solar_surplus_estimated'')
+        }}'
       retain: true
   - choose:
     - conditions:
@@ -284,20 +289,18 @@
       - action: mqtt.publish
         data:
           topic: energyhub/input/ha/daily_summary_snapshot
-          payload: >-
-            {{ {
-              'date': now().strftime('%Y-%m-%d'),
-              'timestamp': as_timestamp(now()) | int,
-              'daily_house_consumption': states('sensor.powmr_10_2m_daily_house_consumption'),
-              'solar_forecast_today': states('sensor.solcast_pv_forecast_forecast_today'),
-              'solar_forecast_tomorrow': states('sensor.solcast_pv_forecast_forecast_tomorrow'),
-              'daily_solar_surplus_estimated': states('input_number.energyhub_daily_solar_surplus_estimated')
-            } | tojson }}
+          payload: "{{ {\n  'date': now().strftime('%Y-%m-%d'),\n  'timestamp': as_timestamp(now())
+            | int,\n  'daily_house_consumption': states('sensor.powmr_10_2m_daily_house_consumption'),\n
+            \ 'solar_forecast_today': states('sensor.solcast_pv_forecast_forecast_today'),\n
+            \ 'solar_forecast_tomorrow': states('sensor.solcast_pv_forecast_forecast_tomorrow'),\n
+            \ 'daily_solar_surplus_estimated': states('input_number.energyhub_daily_solar_surplus_estimated')\n}
+            | tojson }}"
           retain: true
   mode: single
 - id: '1784300000001'
   alias: EnergyHub - Publish Live Solcast Forecasts
-  description: Publishes live Solcast forecast changes for EnergyHub decision engines without creating Daily Summary snapshots.
+  description: Publishes live Solcast forecast changes for EnergyHub decision engines
+    without creating Daily Summary snapshots.
   triggers:
   - trigger: state
     entity_id:
@@ -407,7 +410,7 @@
       sequence:
       - action: persistent_notification.create
         data:
-          title: "🌙 EnergyHub: Hybrid activated"
+          title: "\U0001F319 EnergyHub: Hybrid activated"
           notification_id: energyhub_hybrid
           message: 'Battery SOC: {{ soc }}%
 
@@ -427,7 +430,7 @@
       sequence:
       - action: persistent_notification.create
         data:
-          title: "🚨 EnergyHub: Panic activated"
+          title: "\U0001F6A8 EnergyHub: Panic activated"
           notification_id: energyhub_panic
           message: 'Battery SOC: {{ soc }}%
 
@@ -445,7 +448,7 @@
       sequence:
       - action: persistent_notification.create
         data:
-          title: "⚠️ EnergyHub: Hybrid activation failed"
+          title: '⚠️ EnergyHub: Hybrid activation failed'
           notification_id: energyhub_hybrid
           message: 'EnergyHub decided to activate Hybrid, but the inverter transition
             was not confirmed.
@@ -462,7 +465,7 @@
       sequence:
       - action: persistent_notification.create
         data:
-          title: "⚠️ EnergyHub: Panic activation failed"
+          title: '⚠️ EnergyHub: Panic activation failed'
           notification_id: energyhub_panic
           message: 'EnergyHub decided to activate Panic, but the inverter transition
             was not confirmed.
