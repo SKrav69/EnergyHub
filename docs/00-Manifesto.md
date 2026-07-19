@@ -1,103 +1,75 @@
 # EnergyHub Manifesto
 
-> **The Operating System for Autonomous Homes**
+EnergyHub exists to make a home energy system calmer, safer, and easier to live with.
 
-EnergyHub exists because modern smart homes are becoming too complex.
+## The problem
 
-A home should not require constant attention from its owner.
+A modern solar home contains an inverter, battery, grid connection, forecasts, tariffs, smart plugs, climate equipment, and many separate applications. Each component exposes data, but the homeowner still has to decide:
 
-A home should quietly take care of itself.
+- whether the battery should be preserved;
+- whether cheap grid electricity should be used tonight;
+- whether unstable grid conditions justify building reserve now;
+- whether surplus energy can be converted into useful comfort;
+- whether the system is healthy or merely silent.
 
----
+Raw telemetry is not autonomy.
 
-## The Problem
+## Our belief
 
-Modern homes are filled with smart devices, services, subscriptions, dashboards, apps, notifications and settings.
+The home should manage ordinary energy decisions by itself while remaining understandable and reversible.
 
-Instead of making life simpler, many systems make homeowners responsible for managing even more complexity.
+```text
+Observe → remember → decide → act → verify → explain
+```
 
-People should not become system administrators of their own homes.
+## Our promise
 
----
+EnergyHub should:
 
-## Our Belief
-
-Smart homes connect devices.
-
-Autonomous homes make decisions.
-
-EnergyHub is building the software foundation for autonomous homes.
-
----
-
-## Our Promise
-
-EnergyHub reduces the cognitive load of living in a modern smart home.
-
-It takes responsibility for routine decisions, reduces unnecessary interaction, and helps the home operate as one coordinated system.
-
-The homeowner should not think about every device, tariff, battery level, charging schedule or automation rule.
-
-The home should manage itself.
-
----
-
-## Core Principle
-
-> **We optimize for people, not for kilowatt-hours.**
-
-Energy optimization matters.
-
-But comfort, safety, simplicity and peace of mind matter more.
-
----
-
-## Product Philosophy
-
-Technology should disappear into the background.
-
-Automation should reduce mental effort, not increase it.
-
-Dashboards should inform, not overwhelm.
-
-Notifications should be rare, useful and actionable.
-
-Silence is a feature.
-
-If everything is working normally, EnergyHub should stay quiet.
-
----
+- reduce the number of decisions a person must make;
+- keep the family informed without demanding constant attention;
+- prefer safe, bounded actions over clever but fragile automation;
+- make every important automatic decision explainable;
+- preserve manual control;
+- remain local-first;
+- treat hardware truth as more important than software assumptions.
 
 ## Autonomous Home
 
-EnergyHub is not just a Home Assistant add-on.
+An autonomous home is not one that performs the most automations. It is one that quietly makes the correct routine decisions and asks for attention only when needed.
 
-It is an operating system layer for the autonomous home.
+For EnergyHub 1.0 this means:
 
-Home Assistant, MQTT, Zigbee, Matter, ESPHome, inverters, batteries, sensors and smart devices are infrastructure.
+- Solar as the normal state;
+- cheap-tariff charging only when tomorrow may require it;
+- daytime reserve protection when grid conditions deteriorate;
+- clear status, reasons, and failure notifications;
+- safe reconstruction after restart.
 
-EnergyHub coordinates them into one understandable system.
+Future Smart Thermal Energy extends the same idea to comfort: use surplus solar or cheap-tariff electricity for heating and cooling regardless of whether the house is occupied.
 
----
+## Human-first principles
 
-## Success Metric
+1. **The family sees outcomes.** Engineers may inspect every input and state, but family members should see a clear current strategy and simple controls.
+2. **Automation is permissioned.** Autopilot is the explicit master permission for inverter strategy changes.
+3. **Failure is visible.** A failed transition must never be reported as activated.
+4. **Recovery is bounded.** EnergyHub does not endlessly retry or restart the inverter.
+5. **Language is honest.** Estimated values are identified as estimates; ACK-confirmed settings are not described as independently verified.
+6. **No fake controls.** A planned feature may be visible, but it must not appear to work before a real controller exists.
+7. **Manual actions remain possible.** Automation should assist the homeowner, not lock them out.
 
-The most important question is not:
+## Success metric
 
-How many kilowatt-hours did we optimize?
+EnergyHub succeeds when the household stops thinking about inverter menus and starts thinking in human outcomes:
 
-The most important question is:
+- the house is protected;
+- the battery is prepared;
+- cheap energy is used intelligently;
+- surplus energy becomes useful;
+- unusual conditions are explained.
 
-How often does the homeowner need to think about the energy system?
+## Final thought
 
-The ideal answer is:
+EnergyHub is not a dashboard around an inverter.
 
-Almost never.
-
----
-
-## Final Thought
-
-People should not manage their home.
-
-Their home should manage itself.
+It is the decision layer that turns a collection of energy devices into one understandable home system.

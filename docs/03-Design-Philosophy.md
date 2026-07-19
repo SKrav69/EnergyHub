@@ -1,181 +1,142 @@
 # EnergyHub Design Philosophy
 
-> Technology should reduce complexity, not create it.
+## Human first
 
----
+EnergyHub is built for a household, not only for an engineer. The family-facing interface should present:
 
-# Human First
+- current strategy;
+- battery reserve;
+- grid availability;
+- important decisions;
+- simple controls.
 
-EnergyHub is designed for people, not devices.
+Technical details remain available in deeper views and logs.
 
-Technology should adapt to the homeowner—not the other way around.
+## Reduce cognitive load
 
-Every design decision should improve everyday life.
+The objective is not to expose every inverter parameter. It is to remove repetitive decisions:
 
----
+```text
+Should I charge tonight?
+Should I preserve the battery?
+Should I build reserve before an outage?
+```
 
-# Reduce Cognitive Load
+EnergyHub should answer these automatically and explain the result.
 
-Modern homes generate too many decisions.
+## Calm technology
 
-EnergyHub exists to eliminate routine thinking.
+Normal operation should be quiet. Notifications are reserved for meaningful transitions, failures, or conditions that require attention.
 
-Every new feature should remove one more decision from the homeowner.
+A successful automatic transition is reported only after the Inverter Controller confirms it. A failed transition produces a failure notification rather than a false activation message.
 
-The ultimate goal is peace of mind.
+## Default to Solar
 
----
+Solar is the normal strategy and the safe recovery target. Automatic strategies are temporary deviations with explicit targets and exits.
 
-# Autonomous Home
+## Explainable decisions
 
-Smart homes connect devices.
+A decision should include:
 
-Autonomous homes make decisions.
+- input values used;
+- rule or comparison applied;
+- selected target;
+- resulting request;
+- transition result.
 
-EnergyHub coordinates independent devices into one intelligent system capable of acting on behalf of the homeowner.
+The dashboard displays concise explanations. Logs preserve technical detail.
 
----
+## Separate decision from execution
 
-# Calm Technology
+Decision services answer **what should happen**.
 
-Technology should stay in the background.
+The Inverter Controller answers **how to change the hardware safely**.
 
-The best automation is almost invisible.
+This boundary prevents policy code from writing inverter settings directly and makes future hardware adapters possible.
 
-If everything is working normally, EnergyHub should remain silent.
+## Honest certainty
 
-Silence is a feature.
+EnergyHub distinguishes between:
 
----
+- measured telemetry;
+- calculated state;
+- estimated energy;
+- read-back verified settings;
+- ACK-confirmed but unreadable settings;
+- remembered context.
 
-# Comfort Before Savings
+Examples:
 
-Financial optimization is important.
+- Menu 01 is independently read back through QPIRI.
+- Menu 16 is ACK-confirmed and persisted because the inverter has no supported read-back command.
+- Grid Import is estimated and not billing-grade.
 
-Comfort is more important.
+## Local first
 
-EnergyHub should never maximize savings at the expense of comfort, safety or resilience.
+Core telemetry, decisions, persistence, and inverter control run locally. Solcast is an external forecast input, not the owner of strategy execution.
 
----
+## Safe and bounded recovery
 
-# Progressive Automation
+EnergyHub prefers one understandable recovery action over indefinite retries.
 
-Trust is built gradually.
+- writes have bounded retries;
+- partial Hybrid/Panic failures attempt Solar recovery;
+- Grid Hold failure attempts one Solar recovery;
+- safe Solar queue requests cannot be overwritten by ordinary requests;
+- the inverter is never restarted automatically.
 
-EnergyHub supports multiple levels of automation.
+## Progressive automation
 
-Level 1 — Monitoring
+A feature should move through clear stages:
 
-The system only observes and informs.
+1. observe;
+2. display;
+3. recommend;
+4. automate with explicit permission;
+5. verify and explain;
+6. generalize only after real-system evidence.
 
-Level 2 — Recommendations
+The experimental Away Mode was removed because it encoded one narrow use case. The broader future feature is Smart Thermal Energy: convert surplus solar or cheap-tariff electricity into heating or cooling, independent of occupancy.
 
-EnergyHub suggests actions while leaving decisions to the homeowner.
+## No fake controls
 
-Level 3 — Assisted Automation
+A planned feature may appear as a labelled future card, but an active switch must not exist before a real service owns the action.
 
-EnergyHub performs actions after confirmation.
+## Preserve manual control
 
-Level 4 — Autonomous Operation
+Autopilot controls automatic inverter strategy changes. Turning it off returns active or unknown automatic strategies to Solar once, then stops automatic changes.
 
-EnergyHub makes routine decisions automatically.
+Manual household controls, such as heat-pump smart plugs, remain available.
 
-Users decide how much control they want to delegate.
+## Ownership for flexible loads
 
----
+Future flexible-load services must stop a device only when EnergyHub started it. This protects manual household actions from automation cleanup.
 
-# Explainable Decisions
+## Progressive disclosure
 
-Automation should never become a black box.
+EnergyHub uses two levels of communication:
 
-Whenever EnergyHub makes an important decision, users should be able to understand:
+### Family layer
 
-* What happened
-* Why it happened
-* What benefit it provides
+- simple Autopilot infographic;
+- current strategy;
+- main charts;
+- grid online/offline;
+- floor comfort controls.
 
-Trust grows through transparency.
+### Technical layer
 
----
+- architecture infographic;
+- health reasons;
+- decision inputs;
+- MQTT state;
+- persistence;
+- transition and recovery logs.
 
-# Invisible Complexity
+## Design goal
 
-Complex logic belongs inside the platform.
-
-The homeowner should interact with simple concepts:
-
-* Solar
-* Hybrid
-* Panic
-* Away
-
-Not inverter commands, MQTT topics or automation rules.
-
----
-
-# Local First
-
-Core functionality must continue working without Internet connectivity.
-
-Cloud services improve the system but should never become mandatory.
-
----
-
-# Safe and Bounded Recovery
-
-The platform should recover automatically when recovery is understood, safe, bounded, and verifiable.
-
-Examples include:
-
-* MQTT reconnect
-* Network reconnect
-* Device reconnect
-* Integration recovery
-
-Automatic recovery must never become an uncontrolled retry loop.
-
-When safe recovery is not possible, EnergyHub should detect the failure, explain it, and require human intervention.
-
----
-
-# Vendor Independence as a Direction
-
-EnergyHub should avoid unnecessary vendor coupling.
-
-The current priority is a reliable real installation with clear responsibility boundaries.
-
-As real multi-vendor requirements appear, reusable services and validated abstractions should allow hardware to change without redesigning the entire platform.
-
-EnergyHub should not introduce speculative abstractions merely to claim hardware independence.
-
----
-
-# Progressive Disclosure
-
-Different users require different levels of information.
-
-Family members should see only what they need.
-
-Advanced users should have access to detailed diagnostics.
-
-The interface should grow with the user's needs.
-
----
-
-# Decision Reduction First
-
-Before implementing any feature, ask one question:
-
-> What decision are we removing from the homeowner?
-
-If a feature does not simplify life, reconsider its design.
-
----
-
-# Design Goal
-
-EnergyHub should become calmer as it becomes smarter.
-
-The ultimate measure of success is not how many automations exist.
-
-It is how rarely the homeowner needs to think about them.
+```text
+Simple outside
+Explicit inside
+Safe at the hardware boundary
+```

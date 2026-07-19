@@ -1,1114 +1,251 @@
 # EnergyHub Decision Log
 
-This document records the major architectural and design decisions made during the EnergyHub project.
+This document records durable architectural and product decisions. Dates are approximate milestone dates; Git history is authoritative for implementation detail.
 
-The purpose is not to document implementation details, but to explain **why** specific decisions were made.
+## D001 — Home Assistant is the integration and user-experience platform
 
-Detailed implementation history belongs in `CHANGELOG.md`.
+**Status:** accepted.
 
----
+Home Assistant owns helpers, schedules, scripts, household automations, notifications, and dashboards. EnergyHub does not recreate those platform capabilities.
 
-# Decision 001
+## D002 — Prefer local communication
 
-## Home Assistant is the integration and user-experience platform
+**Status:** accepted.
 
-### Decision
+Inverter telemetry and control use local USB-RS232. MQTT is local. Cloud forecast data is an input, not the control plane.
 
-EnergyHub uses Home Assistant as its primary integration, automation, and user-experience platform.
+## D003 — PI30MAX is the current PowMr interface
 
-### Reason
+**Status:** accepted.
 
-Home Assistant already provides:
+EnergyHub supports the verified command set of the installed PowMr 10.2M through `mpp-solar`.
 
-- MQTT integration;
-- dashboards;
-- device discovery;
-- helpers;
-- automations;
-- notifications;
-- a large integration ecosystem.
+## D004 — Decision logic and hardware execution are separate
 
-EnergyHub should focus on energy intelligence, historical knowledge, health evaluation, and coordinated energy strategy rather than replacing Home Assistant.
+**Status:** accepted.
 
----
+Decision services select strategy and target. Inverter Controller executes and confirms transitions.
 
-# Decision 002
+## D005 — Vendor independence is a direction, not a current claim
 
-## Prefer local communication
+**Status:** accepted.
 
-### Decision
+Current code is PowMr-specific. Future adapters should expose capabilities without weakening present reliability.
 
-Whenever possible, EnergyHub communicates with devices locally.
+## D006 — Grid Confidence is derived from recent history
 
-### Reason
+**Status:** accepted.
 
-The system must continue operating during:
+Grid Confidence uses the average of 24-hour and 48-hour availability and maps it to normal, unstable, risk, or panic.
 
-- Internet outages;
-- cloud service failures;
-- vendor service interruptions.
+## D007 — 1.0 operating strategies are Solar, Hybrid Charging, Hybrid Grid Hold, and Panic
 
-Local control is the primary implementation.
+**Status:** accepted.
 
-Cloud integrations may be added as optional data sources or adapters.
+These are household strategies, not raw inverter menu names.
 
----
+## D008 — Manual Panic and automatic Panic are different intents
 
-# Decision 003
+**Status:** accepted.
 
-## PI30MAX is the primary PowMr interface
+Manual Panic targets 95%. Automatic Panic targets 80% or 95% according to Grid Confidence and reserve conditions.
 
-### Decision
+## D009 — Automatic strategies are reversible
 
-The first EnergyHub implementation uses the local PI30MAX protocol.
+**Status:** accepted.
 
-### Reason
+Solar is the default and recovery strategy. Automatic modes have explicit exits.
 
-PI30MAX provides sufficient access to:
+## D010 — Hybrid is evaluated once at 23:50
 
-- Battery SOC;
-- Grid Voltage;
-- House Load;
-- PV production;
-- charging configuration;
-- output-source configuration;
-- operating state;
-- warning information.
+**Status:** accepted.
 
-Some information is unavailable through PI30MAX, including reliable accumulated Grid Import data and PV2 telemetry.
+Home Assistant supplies the scheduled trigger. EnergyHub evaluates current SOC, today's consumption, and tomorrow's live forecast.
 
-EnergyHub may derive missing operational knowledge where technically reasonable.
+## D011 — MQTT is the integration bus
 
----
+**Status:** accepted.
 
-# Decision 004
+EnergyHub publishes Discovery, state, and events. Home Assistant publishes controls and forecast inputs.
 
-## Separate decision logic from hardware execution
+## D012 — `main.py` remains an orchestrator
 
-### Decision
+**Status:** accepted with technical debt.
 
-Decision services must not directly send hardware protocol commands.
+It may coordinate services and lifecycle but should not absorb new policy calculations indefinitely.
 
-### Reason
+## D013 — EnergyHub owns inverter strategy execution
 
-Energy strategy and hardware execution are different responsibilities.
+**Status:** accepted.
 
-Example:
+Home Assistant requests strategies; it does not directly send POP/PCP commands.
 
-```text
-Decision:
-Enter Hybrid
-```
+## D014 — EnergyHub optimizes policy, not individual device scripts
 
-The Inverter Controller translates that strategy into:
+**Status:** accepted.
 
-```text
-Setting 01 → SUB
-Setting 16 → SNU
-```
+Device-specific household automations remain in HA until a real EnergyHub service owns the capability.
 
-The PowMr implementation then translates those settings into PI30MAX commands.
+## D015 — Menu 01 is approved for autonomous use
 
-This separation improves:
+**Status:** accepted.
 
-- testability;
-- explainability;
-- future hardware support;
-- control safety.
+Mappings:
 
----
+- SUB → POP01;
+- SBU → POP02.
 
-# Decision 005
+A write is successful only after QPIRI read-back matches the expected value.
 
-## Progress toward capability-based architecture
+## D016 — Menu 16 is approved as ACK-confirmed state
 
-### Decision
+**Status:** accepted with hardware limitation.
 
-The long-term EnergyHub architecture should operate on capabilities rather than device brands.
+Mappings:
 
-### Examples
+- SNU → PCP01;
+- OSO → PCP02.
 
-Instead of:
+The inverter provides no supported read-back query. EnergyHub persists the last successful ACK-confirmed value.
 
-- Xiaomi Plug;
-- Shelly Relay;
-- PowMr Command.
+## D017 — Hybrid uses a two-stage strategy
 
-EnergyHub should eventually reason about:
+**Status:** accepted.
 
-- House Heating;
-- EV Charging;
-- Battery Charging;
-- Grid Supply;
-- Solar Generation.
+Hybrid Charging reaches 80% SOC, then Hybrid Grid Hold preserves the battery while the house remains on the cheap grid until 07:00.
 
-### Reason
+## D018 — Panic is reevaluated during the day
 
-Devices may change.
+**Status:** accepted.
 
-Capabilities remain conceptually stable.
+Evaluation occurs every 15 minutes from 12:00 until 23:50 while Solar is active.
 
-### Current Limitation
+## D019 — Notifications originate from EnergyHub events
 
-EnergyHub 1.x may contain practical device-specific integration where required for the current house.
+**Status:** accepted.
 
-Capability abstraction should be introduced progressively rather than prematurely.
+Home Assistant renders persistent notifications from `energyhub/event/notification`.
 
----
+## D020 — Grid Import is estimated inside EnergyHub
 
-# Decision 006
+**Status:** accepted.
 
-## Grid Confidence replaces Grid Stability
+The inverter lacks reliable import telemetry. EnergyHub estimates house energy during SUB plus positive battery SOC gain.
 
-### Decision
+## D021 — Grid Import follows confirmed strategy intervals
 
-EnergyHub evaluates **Grid Confidence** rather than Grid Stability.
+**Status:** accepted.
 
-### Reason
+Accounting is enabled for confirmed Hybrid Charging, Hybrid Grid Hold, and Panic, rather than inferred only from instantaneous voltage.
 
-The objective is not to measure electrical grid quality.
+## D022 — Grid Import state is persistent and versioned
 
-The objective is to estimate how much EnergyHub should trust the grid when making energy-management decisions.
+**Status:** accepted.
 
-Current inputs include recent grid availability.
+Schema migration may discard an incompatible current-day estimate rather than silently combine incompatible accounting models.
 
-Future inputs may include:
+## D023 — Flexible-load automation must preserve ownership
 
-- weighted recent outages;
-- weather forecast;
-- planned outages;
-- historical reliability.
+**Status:** accepted for future work.
 
----
+EnergyHub may stop a flexible load only when EnergyHub previously started it.
 
-# Decision 007
+## D024 — Remove Away Mode and replace the concept with Smart Thermal Energy
 
-## EnergyHub 1.0 operating strategies are Solar, Hybrid, and Panic
+**Status:** accepted and implemented for 1.0 cleanup.
 
-### Decision
+The old runtime implementation, helpers, and dashboard control were removed. Future thermal optimization works regardless of occupancy.
 
-The original Summer / Winter / Away concept is replaced by explicit EnergyHub operating strategies:
+## D025 — Home Assistant configuration is selectively versioned
 
-- Solar;
-- Hybrid;
-- Panic.
+**Status:** accepted.
 
-### Reason
+Version controlled items include YAML config and selected `.storage` helpers/dashboard resources. Secrets, entity registry, runtime databases, and unrelated state are excluded.
 
-Summer and Winter describe seasons rather than actual energy strategies.
+## D026 — HA synchronization is bidirectional in the workflow
 
-The new names describe what EnergyHub is doing.
+**Status:** accepted.
 
-### Current Meaning
+Git-to-HA deployment and HA-to-Git synchronization are separate explicit operations followed by review.
 
-```text
-Solar
-→ normal solar-first operation
+## D027 — Raw inverter and EnergyHub diagnostic availability are separate
 
-Hybrid
-→ planned grid charging and battery preservation
+**Status:** accepted and implemented.
 
-Panic
-→ protective charging caused by increased energy risk
-```
+Raw sensors require `energyhub/status` and `powmr/status`. Diagnostics require only EnergyHub process availability.
 
----
+## D028 — Live forecasts and historical snapshots are separate inputs
 
-# Decision 008
+**Status:** accepted and implemented.
 
-## Manual Panic and automatic Panic are different intents
+Live Solcast values update decision inputs. Scheduled Daily Summary values create historical snapshots only through one atomic payload.
 
-### Decision
+## D029 — Daily Summary snapshots are atomic
 
-EnergyHub distinguishes between user-requested Panic and automatically triggered Panic.
+**Status:** accepted and implemented.
 
-### Reason
+Sequential retained input messages may update stored inputs but never create a snapshot. The 23:51 JSON payload is the snapshot boundary.
 
-Automatic Panic is an EnergyHub decision based on known system inputs.
+## D030 — Midnight Grid Import finalization is a persistent hand-off
 
-Manual Panic represents direct homeowner intent.
+**Status:** accepted and implemented.
 
-The system should preserve this distinction in future control and recovery logic.
+Grid Import queues the completed day; Daily Summary reconciles it; Grid Import acknowledges only after a non-invalid result. The operation is idempotent.
 
-### Current Implementation
+## D031 — Restart strategy reconstruction combines physical and remembered state
 
-Automatic Panic may:
+**Status:** accepted and implemented.
 
-- start automatically;
-- charge to a calculated target;
-- restore Solar automatically.
+Use actual Menu 01, remembered ACK-confirmed Menu 16, persisted mode, and Panic target. Do not use clock time as the source of truth.
 
-Manual Panic is available as a direct user control.
+## D032 — Safe Solar queue requests have priority
 
-Further manual-override policy will be refined during stabilization.
+**Status:** accepted and implemented.
 
----
+The MQTT callback and main loop share a lock-protected queue. Ordinary requests cannot overwrite a pending safe Solar recovery.
 
-# Decision 009
+## D033 — Existing MQTT unique IDs are preserved during naming cleanup
 
-## Automatic decisions should be reversible
+**Status:** accepted and implemented.
 
-### Decision
+The finalized Daily Summary Grid Import entity was renamed in the HA registry without deleting/recreating it, preserving history and unique ID.
 
-When EnergyHub automatically changes operating strategy, it may automatically leave that strategy when its completion or exit conditions are reached.
+## D034 — Unchanged load is diagnostic, not freshness evidence
 
-### Reason
+**Status:** accepted and implemented.
 
-Autonomous decisions require autonomous lifecycle management.
+Telemetry freshness depends on valid telemetry age. `House Load Unchanged` remains informational.
 
-Examples:
+## D035 — Activation notifications require transition success
 
-```text
-Automatic Panic
-→ target SOC reached
-→ restore Solar
-```
+**Status:** accepted and implemented.
 
-```text
-Hybrid Charging
-→ 80% SOC reached
-→ Hybrid Grid Hold
-→ 07:00
-→ restore Solar
-```
+A decision being queued is not an activation. Success or failure is published only after Inverter Controller returns.
 
----
+## D036 — Persistence is atomic and routine writes are throttled
 
-# Decision 010
+**Status:** accepted and implemented.
 
-## Hybrid strategy is evaluated once per day
+Critical boundaries save immediately. Incremental Grid Import and raw telemetry snapshots are limited to approximately one write per minute.
 
-### Decision
+## D037 — No fake Smart Thermal switch in 1.0
 
-EnergyHub evaluates the need for Hybrid operation at 23:50.
+**Status:** accepted.
 
-### Inputs
+The dashboard may show the planned capability, but no active helper exists until a real controller is implemented.
 
-- current Battery SOC;
-- today's House Consumption;
-- tomorrow's Solar Forecast;
-- nominal battery capacity.
+## D038 — Visual language is consistent across charts and dashboards
 
-### Reason
+**Status:** accepted.
 
-The decision should estimate whether tomorrow's solar energy is sufficient both to operate the house and restore missing battery energy.
+- orange: solar;
+- blue: house load/consumption;
+- green: battery/healthy/online;
+- purple: grid import or technical load;
+- red: temperature risk, failure, or emergency.
 
-### Calculation
+## D039 — Documentation is updated after code and UI stabilization
 
-```text
-Battery Refill Required
-=
-Battery Capacity × Missing SOC Percentage
-```
+**Status:** accepted.
 
-```text
-Required Energy
-=
-Today's House Consumption
-+
-Battery Refill Required
-```
-
-### Result
-
-```text
-Forecast Tomorrow >= Required Energy
-→ remain Solar
-
-Forecast Tomorrow < Required Energy
-→ enter Hybrid
-```
-
----
-
-# Decision 011
-
-## Event-driven architecture
-
-### Decision
-
-EnergyHub uses an Event Bus for internal event distribution.
-
-### Reason
-
-Services should remain independent where practical.
-
-New inverter telemetry can be published once and consumed by interested services.
-
-Current and evolving consumers include:
-
-- Grid Monitor;
-- health services;
-- historical services;
-- decision services.
-
-The Event Bus should reduce unnecessary direct coupling between services.
-
----
-
-# Decision 012
-
-## Layered and responsibility-based architecture
-
-### Decision
-
-EnergyHub separates major responsibilities.
-
-```text
-Hardware
-    ↓
-Communication / Adapters
-    ↓
-Telemetry and State
-    ↓
-Historical Knowledge / Health
-    ↓
-Decision Intelligence
-    ↓
-Control Execution
-    ↓
-Home Assistant Integration
-    ↓
-User Interface
-```
-
-### Reason
-
-Each subsystem should have a clear responsibility.
-
-Core separation:
-
-```text
-Telemetry
-≠
-Historical Knowledge
-≠
-Health
-≠
-Decision
-≠
-Control
-≠
-User Interface
-```
-
----
-
-# Decision 013
-
-## EnergyHub owns inverter strategy execution
-
-### Decision
-
-EnergyHub, not Home Assistant, owns execution of inverter operating strategies.
-
-### Reason
-
-EnergyHub now contains:
-
-- decision logic;
-- operating-mode state;
-- command sequencing;
-- acknowledgement handling;
-- verification;
-- bounded retries;
-- transition state.
-
-Home Assistant remains responsible for:
-
-- dashboards;
-- helpers;
-- user controls;
-- selected household automations;
-- notification delivery;
-- external integrations.
-
-### Impact
-
-The previous statement that Home Assistant is the sole execution platform is no longer accurate.
-
-Responsibility is divided according to system role.
-
----
-
-# Decision 014
-
-## EnergyHub optimizes policies, not individual devices
-
-### Decision
-
-EnergyHub is designed to optimize operating policies.
-
-Examples include:
-
-- resilience;
-- comfort;
-- economy;
-- renewable-energy utilization;
-- future Net Billing profitability.
-
-### Reason
-
-Hardware may change.
-
-Optimization goals may evolve.
-
-The Decision Engine should remain flexible enough to support different strategies without redesigning the entire architecture.
-
----
-
-# Decision 015
-
-## Inverter Setting 01 control is approved for autonomous use
-
-### Decision
-
-EnergyHub may use POP commands to control inverter Setting 01.
-
-### Confirmed Mapping
-
-```text
-POP01 → SUB
-POP02 → SBU
-```
-
-### Reason
-
-The mapping was verified on the real inverter using:
-
-- ACK responses;
-- QPIRI;
-- QMOD;
-- physical inverter display.
-
-### Impact
-
-This enabled autonomous Solar, Hybrid, and Panic strategy execution.
-
----
-
-# Decision 016
-
-## Inverter Setting 16 control is approved for autonomous use
-
-### Decision
-
-EnergyHub may use PCP commands to control inverter Setting 16.
-
-### Confirmed Mapping
-
-```text
-PCP01 → SNU
-PCP02 → OSO
-PCP03 → CSO
-```
-
-### Reason
-
-The mapping was verified on the real inverter.
-
-### Impact
-
-EnergyHub can coordinate charger-source strategy with output-source strategy.
-
----
-
-# Decision 017
-
-## Hybrid uses a two-stage strategy
-
-### Decision
-
-Hybrid operation consists of:
-
-1. Hybrid Charging;
-2. Hybrid Grid Hold.
-
-### Sequence
-
-```text
-Hybrid Charging
-SUB + SNU
-      ↓
-SOC reaches 80%
-      ↓
-Hybrid Grid Hold
-SUB + OSO
-      ↓
-07:00
-      ↓
-Solar
-SBU + OSO
-```
-
-### Reason
-
-After the battery reaches the target SOC, continuing utility charging is unnecessary.
-
-However, immediately returning to battery operation would consume the stored reserve during the cheap night-tariff period.
-
-Grid Hold preserves the battery until morning.
-
----
-
-# Decision 018
-
-## Panic is evaluated repeatedly during the day
-
-### Decision
-
-Automatic Panic evaluation occurs every 15 minutes between 12:00 and 23:50.
-
-### Reason
-
-Unlike the daily Hybrid decision, Panic responds to changing daytime energy risk.
-
-### Current Evaluation Order
-
-```text
-1. Autopilot enabled
-2. Inside the 12:00–23:50 evaluation window
-3. Current Operating Mode is Solar
-4. Evaluate Grid Confidence
-5. Evaluate Battery SOC threshold
-6. Compare Solar Forecast Today with Previous Daily Consumption × 1.20
-```
-
-Instantaneous PV power is intentionally not used.
-
-### Current Strategies
-
-Unstable grid:
-
-```text
-SOC < 50%
-→ target 80%
-```
-
-Higher-risk grid:
-
-```text
-SOC < 80%
-→ target 95%
-```
-
-### Constraint
-
-Automatic Panic evaluation is active only when the current operating strategy is Solar.
-
----
-
-# Decision 019
-
-## Automatic decision notifications originate in EnergyHub
-
-### Decision
-
-EnergyHub publishes significant automatic decision events.
-
-Home Assistant delivers the user-facing notification.
-
-### Architecture
-
-```text
-EnergyHub Decision
-        ↓
-MQTT Notification Event
-        ↓
-Home Assistant Automation
-        ↓
-Persistent / Mobile / Future Telegram Notification
-```
-
-### Reason
-
-EnergyHub knows why the decision occurred.
-
-Home Assistant is better suited to notification channels and presentation.
-
-### Current Topic
-
-```text
-energyhub/event/notification
-```
-
----
-
-# Decision 020
-
-## Grid Import is estimated inside EnergyHub
-
-### Decision
-
-EnergyHub estimates Grid Import because the current PowMr interface does not provide a reliable accumulated Grid Import counter.
-
-### Reason
-
-Grid Import is important for:
-
-- historical energy understanding;
-- Hybrid and Panic validation;
-- future economic optimization.
-
-### Current Accounting Model
-
-Accounting follows SUB operating intervals.
-
-It starts when EnergyHub enters:
-
-- Hybrid Charging;
-- Hybrid Grid Hold;
-- Panic.
-
-It stops after EnergyHub returns to Solar/SBU.
-
-```text
-Grid Import
-=
-House Energy Supplied During SUB
-+
-Positive Battery SOC Gain × Nominal Battery Capacity
-```
-
-Current nominal battery capacity:
-
-```text
-16 kWh
-```
-
-Temporary SOC drops do not inflate the estimate.
-
-### Constraint
-
-Estimated Grid Import is informational and not billing-grade.
-
----
-
-# Decision 021
-
-## Grid Import accounting follows strategy intervals rather than instantaneous power balance
-
-### Decision
-
-EnergyHub accumulates Grid Import across verified SUB intervals instead of estimating daily import continuously from unsynchronized instantaneous telemetry.
-
-### Reason
-
-The previous Solar-mode power-balance estimator could accumulate false energy because inverter telemetry values are not perfectly synchronized.
-
-The SUB interval is a clearer operational boundary for known grid-powered strategies.
-
-### Impact
-
-The previous Solar-mode 50 W noise-floor decision is obsolete.
-
----
-
-# Decision 022
-
-## Grid Import state is persistent and versioned
-
-### Decision
-
-Daily estimated Grid Import is stored persistently and its storage format is schema-versioned.
-
-### Reason
-
-EnergyHub restarts must not reset accumulated daily energy, and estimator redesigns must not silently reuse incompatible persisted values.
-
-### Current Storage
-
-```text
-/data/grid_import.json
-```
-
-Current schema:
-
-```text
-schema_version = 2
-```
-
-The service also supports day-boundary finalization and yesterday history.
-
----
-
-# Decision 023
-
-## Flexible-load automation must preserve ownership
-
-### Decision
-
-EnergyHub should track whether it started a controlled household load.
-
-### Reason
-
-EnergyHub must not blindly switch off a device that was started manually or by another automation.
-
-### Rule
-
-```text
-EnergyHub may automatically stop a household load
-only when EnergyHub previously started it.
-```
-
-### Status
-
-The principle is retained for future Smart Heating and flexible-load architecture.
-
-The original Away Mode implementation was deferred.
-
----
-
-# Decision 024
-
-## Away Mode is deferred in favor of broader Smart Heating architecture
-
-### Decision
-
-Away Mode is not part of the final EnergyHub 1.0 operating strategy model.
-
-### Reason
-
-The original Away concept mixed:
-
-- occupancy;
-- comfort;
-- solar-surplus heating;
-- cheap-tariff opportunities;
-- battery reserve;
-- flexible-load control.
-
-These concerns require a broader Smart Heating and flexible-load architecture.
-
-### Impact
-
-This work moves to EnergyHub 1.1.
-
-The future design should consider both occupied and unoccupied operation rather than treating Away as an isolated energy strategy.
-
----
-
-# Decision 025
-
-## Home Assistant configuration is versioned selectively
-
-### Decision
-
-Selected Home Assistant configuration is synchronized into the EnergyHub Git repository.
-
-### Structure
-
-```text
-homeassistant/
-└── live/
-```
-
-### Reason
-
-The repository should represent the complete reviewed EnergyHub system, including the Home Assistant configuration that participates in operation.
-
-### Constraint
-
-The complete Home Assistant `.storage` directory must never be committed.
-
-Only explicitly approved files are synchronized.
-
----
-
-# Decision 026
-
-## Home Assistant synchronization is bidirectional at the workflow level
-
-### Decision
-
-EnergyHub code is deployed from Git to Home Assistant, while selected Home Assistant configuration is synchronized from Home Assistant back to Git.
-
-### Workflow
-
-```text
-EnergyHub Code
-Git → Home Assistant
-```
-
-```text
-Home Assistant Configuration
-Home Assistant → Git
-```
-
-### Reason
-
-Python code and Home Assistant configuration are edited in different environments.
-
-Both must still be reviewable and versioned in one project repository.
-
----
-
-# Decision 027
-
-## Technical hardware limits and household strategy parameters are different concepts
-
-### Decision
-
-Future configurable parameters must distinguish between:
-
-- technical hardware limits;
-- household operating strategy.
-
-### Examples
-
-Technical:
-
-- maximum battery charging current;
-- inverter-supported current limits;
-- battery manufacturer limits.
-
-Strategy:
-
-- Hybrid target SOC;
-- Panic target SOC;
-- Away Mode temperature thresholds;
-- Away Mode PV threshold.
-
-### Reason
-
-Technical limits depend on installed hardware.
-
-Strategy settings depend on homeowner preferences and operating goals.
-
-EnergyHub 1.2 will progressively make trusted strategy parameters configurable.
-
----
-
-# Decision 028
-
-## Recovery must be bounded and responsibility-specific
-
-### Decision
-
-EnergyHub should automatically recover only from failures where safe recovery actions are known and bounded.
-
-### Reason
-
-Detection and recovery are different responsibilities.
-
-Examples:
-
-- MQTT reconnect may be automatic;
-- transient serial retry may be automatic;
-- service restart may be considered;
-- inverter restart must never be automatic.
-
-Recovery architecture must define:
-
-- what failed;
-- which subsystem owns recovery;
-- which actions are allowed;
-- retry limits;
-- escalation behavior.
-
----
-
-# Decision 029
-
-## Restart recovery should reconstruct strategy from verified inverter state
-
-### Decision
-
-EnergyHub should evolve toward reconstructing the current operating strategy after restart from verified inverter settings.
-
-### Intended Mapping
-
-```text
-SUB + SNU → Hybrid Charging or Panic; additional context required
-SUB + OSO → Hybrid Grid Hold
-SBU + OSO → Solar
-```
-
-### Reason
-
-Time alone is not sufficient to determine the real operating strategy after a restart.
-
-The physical inverter state is the authoritative execution state.
-
-### Status
-
-Planned high-priority stabilization work.
-
----
-
-# Decision 030
-
-## Hybrid evaluations publish retained explainable data
-
-### Decision
-
-EnergyHub retains the final Hybrid decision, reason, and evaluation inputs.
-
-### Current Data
-
-- final decision;
-- decision reason;
-- Battery SOC used;
-- House Consumption used;
-- Battery Refill Required;
-- Total Energy Required;
-- Solar Forecast Tomorrow used.
-
-### Reason
-
-A homeowner should be able to understand not only what EnergyHub decided, but which values produced that decision.
-
-This also improves debugging and real-system validation.
-
----
-
-# Decision 031
-
-## Panic decisions do not use instantaneous PV power
-
-### Decision
-
-Current PV power is not an input to the final EnergyHub 1.0 automatic Panic decision.
-
-### Reason
-
-Instantaneous PV power can change rapidly because of clouds and time of day.
-
-The Panic decision already uses:
-
-- Grid Confidence;
-- Battery SOC;
-- Solar Forecast Today;
-- Previous Daily Consumption.
-
-These inputs better represent energy risk than a temporary PV reading.
-
----
-
-# Decision 032
-
-## EnergyHub milestones separate Smart Loads, Configuration, and Recovery
-
-### Decision
-
-Post-1.0 development is divided into distinct milestones:
-
-```text
-1.1
-→ Smart Loads & Test-Drive Improvements
-
-1.2
-→ Configurable EnergyHub
-
-1.3
-→ Recovery & Resilience
-```
-
-### Reason
-
-These are separate architectural concerns.
-
-Smart Loads should evolve from real household needs.
-
-Configuration should expose safe strategy variables without mixing them with hardware limits.
-
-Recovery requires focused work on failure ownership, bounded retries, and state reconstruction.
-
-Separating the milestones keeps development understandable and prevents premature complexity.
-
----
-
-# Decision 033
-
-## EnergyHub 1.0 enters test-drive before major new feature development
-
-### Decision
-
-After completion of Solar, Hybrid, Panic, Autopilot, health monitoring, Grid Intelligence, Daily Summary, Grid Import accounting, and Home Assistant integration, major new feature development pauses for real-system validation.
-
-### Reason
-
-The system should accumulate operational evidence before more complexity is added.
-
-Current priorities are:
-
-- Autopilot test driving;
-- full code review;
-- entity cleanup;
-- obsolete MQTT Discovery cleanup;
-- Grid Import rollover validation;
-- dashboard and chart redesign;
-- bug fixes.
-
----
-
-# Decision 034
-
-## EnergyHub 1.0 prioritizes one reliable real installation over premature generalization
-
-
-
-## EnergyHub 1.0 prioritizes one reliable real installation over premature generalization
-
-### Decision
-
-EnergyHub 1.0 focuses on making the current house operate reliably and autonomously.
-
-### Reason
-
-Real-world validation is more valuable than introducing abstractions before their requirements are understood.
-
-The current implementation may remain PowMr-specific where practical.
-
-Multi-vendor abstractions belong to later EnergyHub versions.
-
----
-
-# Decision 035
-
-## EnergyHub evolves progressively
-
-### Decision
-
-EnergyHub development follows this progression:
-
-```text
-Monitoring
-    ↓
-Reliable Facts
-    ↓
-Health Awareness
-    ↓
-Historical Knowledge
-    ↓
-Explainable Decisions
-    ↓
-Validated Automation
-    ↓
-Autonomous Home Operation
-    ↓
-Whole-Home Energy Optimization
-```
-
-### Reason
-
-Autonomy should be earned through validated system knowledge and safe control behavior.
-
----
-
-# Future Decisions
-
-This document will continue to evolve as EnergyHub grows.
-
-Likely future architectural decisions include:
-
-- configurable EnergyHub 1.2 parameters;
-- advanced Grid Confidence weighting;
-- direct BMS integration;
-- EV charging strategy;
-- multi-inverter capability abstraction;
-- dynamic tariff optimization;
-- Net Billing and export optimization;
-- battery degradation modeling.
-
-Major architectural decisions should be recorded here when they become sufficiently concrete to guide implementation.
+Current-state documentation is audited once after coherent functional and dashboard changes, reducing transient contradictions.

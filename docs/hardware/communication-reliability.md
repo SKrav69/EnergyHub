@@ -1,158 +1,122 @@
 # Communication Reliability
 
-EnergyHub continuously evaluates communication quality and prevents invalid or stale inverter data from being treated as valid system state.
+## Physical path
 
----
+```text
+EnergyHub add-on
+→ mpp-solar subprocess
+→ /dev/ttyUSB0
+→ USB-RS232 adapter
+→ PowMr PI30MAX
+```
 
-## Telemetry Validation
+## Serial ownership
 
-Telemetry containing invalid values is rejected.
+`PowMrLocalAdapter` uses one thread lock so telemetry, warning, settings, and write commands cannot start concurrent `mpp-solar` processes on the same serial port.
 
-Examples:
+## Command timeout
 
-- SOC = None
-- PV = None
-- Load = None
+Each adapter command has a 25-second subprocess timeout.
 
-Invalid telemetry values are never published to MQTT as valid inverter state.
+## Telemetry validation
 
----
+A normalized state is valid only when required telemetry values can be interpreted. Invalid telemetry:
+
+- is logged;
+- is not published as a fresh raw state;
+- advances Communication Watchdog failure state;
+- marks `powmr/status` offline;
+- leaves EnergyHub diagnostics available.
 
 ## Communication Watchdog
 
-Tracks inverter communication reliability.
+- success resets consecutive errors and timestamp;
+- one or more errors before 60 seconds → recovering;
+- errors with at least 60 seconds since success → offline;
+- no current errors but old success timestamp → stale.
 
-Current scope:
+## Telemetry Freshness
 
-- Last successful telemetry
-- Consecutive communication failures
+Freshness is based on time since the latest valid sample:
 
-States:
+- no valid sample → stale;
+- age ≥60 seconds → stale;
+- otherwise fresh.
 
-- Starting
-- Online
-- Recovering
-- Offline
+An unchanged house load is not proof of frozen telemetry. It is published as a separate diagnostic duration.
 
-The Communication Watchdog provides the primary communication health state used by EnergyHub.
+## Inverter Health
 
----
+QPIWS is read every 60 seconds. Active warning keys are published, while protocol metadata/reserved keys are ignored.
 
-## Telemetry Freshness Monitor
+A warning-read failure produces `warning_read_failed` rather than pretending that no warnings exist.
 
-Monitors whether valid inverter telemetry continues to update.
+## System Health
 
-Current implementation:
+System Health aggregates:
 
-- No valid telemetry for 60 seconds → stale
-- House Load unchanged for 5 minutes → warning
+- Communication Health;
+- Battery Health;
+- Telemetry Freshness;
+- Inverter Health.
 
-This monitor detects situations where communication may appear operational but telemetry is no longer updating correctly.
+Communication offline makes System Health unavailable. Recovering/stale or component warnings produce warning.
 
----
+## Availability topics
 
-## Inverter Health Monitor
+### EnergyHub process
 
-Monitors inverter warnings and faults independently from telemetry communication.
+```text
+energyhub/status
+```
 
-Current implementation:
+### Raw inverter telemetry
 
-- QPIWS queried every 60 seconds
-- Active inverter warning and fault flags are parsed
-- Inverter health state is published to MQTT
+```text
+powmr/status
+```
 
-Current observed inverter warning:
+This separation is essential: diagnostic entities stay visible while raw telemetry is unavailable.
 
-- `eeprom_fault = 1`
+## Write reliability
 
----
+### Menu 01
 
-## System Health Aggregation
+- up to three ACK attempts;
+- QPIRI read-back verification;
+- transition fails on mismatch.
 
-EnergyHub combines individual health components into an overall System Health state.
+### Menu 16
 
-Current components:
+- up to three ACK attempts;
+- persisted after ACK;
+- no independent read-back available.
 
-- Communication Health
-- Battery Health
-- Telemetry Health
-- Inverter Health
+## Recovery
 
-System Health provides a single high-level view of EnergyHub operational health.
+Current recovery is bounded:
 
----
+- normal polling resumes after transient errors;
+- partial automatic transitions attempt Solar recovery;
+- safe Solar requests have queue priority;
+- no automatic inverter reboot.
 
-## Write Command Reliability
+See [Recovery Strategy](../13-Recovery-Strategy.md).
 
-EnergyHub must not assume that an inverter write command succeeded only because the command returned `ACK`.
+## Known hardware limits
 
-Write operations should use explicit verification.
+- USB device paths may change if multiple adapters are connected;
+- `mpp-solar` subprocess calls can block until timeout;
+- Menu 16 cannot be queried;
+- unsupported PI30MAX commands must not be treated as transient failures;
+- communication recovery is not yet a full state machine.
 
-Expected sequence:
+## Planned 1.3 improvements
 
-1. Send write command.
-2. Verify `ACK`.
-3. Read inverter configuration using `QPIRI`.
-4. Confirm that the requested setting is active.
-5. Report failure if the requested state is not confirmed.
-6. Apply recovery behavior when appropriate.
-
-This policy is especially important for future automatic inverter strategy transitions.
-
----
-
-## Recovery Strategy
-
-Recovery behavior is the next development milestone.
-
-The recovery design must investigate:
-
-- MQTT connection failures
-- Network failures
-- Serial communication failures
-- `mpp-solar` timeouts and blocking
-- Partial inverter strategy transitions
-- Write command failures
-- Write verification failures
-
-Recovery responsibilities must be defined for each EnergyHub service.
-
-EnergyHub must distinguish between situations where:
-
-- automatic recovery should occur
-- retry should occur
-- the failure should only be reported
-- homeowner notification is required
-- manual intervention is required
-
----
-
-## Planned Recovery Layers
-
-Possible recovery sequence:
-
-1. Retry operation.
-2. Retry telemetry or configuration read.
-3. Reconnect serial communication.
-4. Restore a known safe inverter configuration when appropriate.
-5. Restart the affected EnergyHub service.
-6. Restart the EnergyHub add-on.
-7. Notify homeowner.
-8. Require manual intervention.
-
-Restarting Home Assistant should only be considered as a last-resort recovery action.
-
----
-
-## Future Work
-
-Planned reliability improvements:
-
-- MQTT connectivity monitoring
-- Serial connection recovery
-- `mpp-solar` timeout protection
-- Inverter command transaction handling
-- Partial transition recovery
-- External EnergyHub watchdog
-- Notification integration
-- Additional self-tests
+- error classification;
+- bounded backoff;
+- serial-device identity checks;
+- process heartbeat;
+- missed schedule recovery;
+- external watchdog;
+- recovery test automation.

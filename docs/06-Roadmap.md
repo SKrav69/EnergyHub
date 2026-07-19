@@ -1,387 +1,177 @@
-﻿# EnergyHub Roadmap
+# EnergyHub Roadmap
 
-> Build the foundation first. Add intelligence second. Scale third.
+The roadmap is organized by product capability, not by speculative code layers.
 
----
+## EnergyHub 1.0 — Autonomous Home
 
-# EnergyHub 1.0 — Autonomous Home
+### Goal
 
-Goal:
+A tested autonomous strategy layer for one house, one PowMr inverter, one battery, and Home Assistant.
 
-Create a reliable local-first energy system that monitors the house, understands current conditions, makes explainable decisions, and safely controls the real inverter.
+### Delivered
 
-Status:
+- local PI30MAX telemetry and control;
+- stable MQTT Discovery entities;
+- Solar, Hybrid Charging, Hybrid Grid Hold, and Panic;
+- Autopilot permission gate;
+- live Solcast decision inputs;
+- Grid History and Grid Confidence;
+- Grid Import estimation;
+- atomic Daily Summary;
+- midnight Grid Import reconciliation;
+- communication, battery, telemetry, inverter, and system health;
+- transition verification and bounded Solar recovery;
+- restart-safe strategy reconstruction;
+- confirmed transition notifications;
+- family and technical infographics;
+- redesigned charts, status, decision, mode, and floor dashboards.
 
-✅ Feature development complete  
-🧪 Test-drive and cleanup phase
+### Remaining release closure
 
-## Delivered
+- executable automated tests;
+- pin tested dependencies;
+- secure MQTT default configuration;
+- complete installation, upgrade, and rollback instructions;
+- remove remaining UI placeholders and repository artifacts;
+- validate real daytime Panic Grid Import behavior;
+- package and tag the release.
 
-* PowMr PI30MAX integration
-* MQTT communication and MQTT Discovery
-* Real-time inverter telemetry
-* Setting 01 and Setting 16 control
-* Verified Solar, Hybrid Charging, Hybrid Grid Hold and Panic transitions
-* Autopilot
-* Hybrid Decision Engine
-* Panic Decision Engine
-* Explainable decision reasons
-* Grid monitoring and Grid History
-* 24-hour and 48-hour Grid Availability
-* Grid Confidence
-* Communication, Battery, Telemetry, Inverter and System Health monitoring
-* Daily Summary Engine
-* Estimated Grid Import accounting
-* Automatic Hybrid and Panic notifications
-* Home Assistant dashboards and controls
-* Home Assistant configuration synchronization to Git
-* Deployment workflow from Git to Home Assistant
+## EnergyHub 1.1 — Test-Drive and Telemetry Robustness
 
-## Final 1.0 Cleanup
+### Goal
 
-* Full post-implementation code review
-* Clean entity IDs such as `*_2`
-* Remove obsolete retained MQTT Discovery entities
-* Verify Grid Import midnight rollover with real data
-* Resolve temporary Grid Import history presentation issues
-* Review and standardize charts and dashboards
-* Make dashboards more compact and context-aware
-* Fix bugs discovered during Autopilot test driving
-* Keep documentation aligned with implementation
+Improve behavior from real-world operation without changing the core architecture.
 
-Success criterion:
+### Planned
 
-> The house operates safely and economically with minimal homeowner intervention, while every important automated decision remains understandable.
+- general telemetry plausibility layer;
+- distinguish valid rapid SOC changes from impossible jumps;
+- protect energy calculations from anomalous telemetry;
+- evaluate whether Panic should use a live PV threshold;
+- validate and refine daytime SUB Grid Import estimation;
+- improve decision and transition test coverage;
+- add the second-floor heat-pump smart plug when hardware is available;
+- preserve manual load ownership semantics;
+- small UI and notification corrections discovered during test drive.
 
----
+## EnergyHub 1.2 — Configurable EnergyHub
 
-# EnergyHub 1.1 — Smart Loads & Test-Drive Improvements
+### Goal
 
-Goal:
+Move trusted strategy policy from code constants into validated user configuration.
 
-Use the first weeks of real autonomous operation to improve EnergyHub and begin intelligent control of flexible household loads.
+### Planned settings
 
-Planned after approximately 2–3 weeks of Autopilot operation.
+- cheap-tariff start and end;
+- battery capacity;
+- Hybrid target SOC;
+- Panic trigger and target SOCs;
+- forecast safety factor;
+- grid-confidence thresholds;
+- charging current policy;
+- strategy profiles;
+- notification preferences.
 
-## Test-Drive Improvements
+Technical safety limits and household policy settings must be clearly separated.
 
-* Fix bugs discovered during real operation
-* Improve logs and naming
-* Cosmetic improvements
-* Dashboard and chart improvements
-* Reduce unnecessary information and duplication
-* Improve family-oriented presentation
+## EnergyHub 1.3 — Recovery & Resilience
 
-## Smart Heating
+### Goal
 
-Reconsider the original Away Mode concept.
+Make recovery responsibilities explicit across MQTT, network, serial, `mpp-solar`, Home Assistant, and process lifecycle failures.
 
-Heating should not depend only on whether the house is occupied.
+### Planned
 
-Future logic should consider:
+- bounded reconnect policies;
+- serial and command timeout classification;
+- state-aware retries;
+- internal fallback for missed 07:00 restoration;
+- startup reconstruction after delayed HA/MQTT availability;
+- external heartbeat/watchdog;
+- safe process restart policy;
+- clear recovery notifications;
+- no automatic inverter reboot.
 
-* occupancy and comfort;
-* available solar surplus;
-* battery reserve;
-* cheap night tariff;
-* expected future energy availability.
+## EnergyHub 1.4 — Remote Access & Telegram
 
-Possible behavior:
+### Goal
 
-```text
-At Home
-→ comfort has priority
-→ use surplus solar for additional heating
-→ optionally use cheap night tariff
+Securely administer and understand the home from another network.
 
-Away
-→ maintain safe / useful house temperature
-→ consume otherwise unused solar generation
-→ preserve required battery reserve
-```
+### Planned
 
-The goal is a general Smart Heating strategy rather than a simple Away Mode.
+- secure remote Home Assistant access;
+- Cloudflare Tunnel primary path;
+- WireGuard backup path;
+- Telegram status command;
+- important health and strategy alerts;
+- optional approved commands;
+- auditable command ownership and permission checks.
 
-## EV Charging Template
+## EnergyHub 1.5 — Smart Thermal Energy
 
-Create a reusable EV charging strategy template.
+### Goal
 
-Future decisions may consider:
+Convert surplus solar or cheap-tariff electricity into useful heating or cooling through Home Assistant-controlled heat pumps.
 
-* available solar surplus;
-* battery SOC;
-* house priorities;
-* cheap tariff periods;
-* required vehicle energy;
-* required departure time.
+This replaces the narrow experimental Away Mode concept.
 
-Status:
+### Principles
 
-📋 Planned
+- works whether anyone is home or away;
+- uses selected heat-pump smart plugs;
+- starts only when energy, reserve, and comfort conditions allow;
+- stops around a configurable reserve boundary;
+- prevents short cycling;
+- respects minimum run and cooldown times;
+- respects comfort limits;
+- stops only loads that EnergyHub started;
+- supports multiple prioritized thermal loads.
 
----
+### Initial concept
 
-# EnergyHub 1.2 — Configurable EnergyHub
-
-Goal:
-
-Make household strategy variables adjustable without editing Python code or Home Assistant YAML.
-
-## Configurable Strategy Parameters
-
-Examples:
-
-* cheap electricity tariff start time;
-* cheap electricity tariff end time;
-* Panic evaluation window;
-* nominal battery capacity;
-* grid charging current;
-* Hybrid target SOC;
-* Panic SOC thresholds;
-* Panic charging targets;
-* other safe Decision Engine variables.
-
-Example:
+A possible first policy is:
 
 ```text
-Cheap tariff:
-23:00–07:00
-→ configurable
+SOC approximately 95% or higher
++ useful solar surplus or cheap tariff
++ room comfort permits
+→ start selected heat pump
 ```
 
 ```text
-Battery capacity:
-16 kWh
-→ configurable
+SOC approximately 80% or lower
+or reserve/comfort/safety rule reached
+→ stop EnergyHub-owned load
 ```
 
-```text
-Grid charging current:
-30 A
-→ configurable within safe limits
-```
-
-## Panic Profiles
-
-Possible selectable strategies:
-
-```text
-Conservative
-SOC below 80%
-→ charge to 95%
-```
-
-```text
-Relaxed
-SOC below 50%
-→ charge to 80%
-```
-
-## Configuration Dashboard
-
-Provide a trusted-user dashboard for strategy configuration.
-
-Requirements:
-
-* safe parameter bounds;
-* clear descriptions;
-* separation between hardware limits and household strategy;
-* no need to edit source code;
-* no need to edit YAML.
-
-Status:
-
-📋 Planned after 1.1
-
----
-
-# EnergyHub 1.3 — Recovery & Resilience
-
-Goal:
-
-Make EnergyHub recover safely and predictably from real system failures.
-
-## Recovery Strategy
-
-Investigate and define recovery for:
-
-* MQTT connection failures;
-* network failures;
-* serial communication failures;
-* `mpp-solar` timeouts and blocking;
-* Home Assistant connectivity failures;
-* inverter communication failures;
-* EnergyHub service failures.
-
-For each subsystem define:
-
-* what failure means;
-* how failure is detected;
-* which service owns recovery;
-* when automatic retry is safe;
-* retry limits and backoff;
-* when EnergyHub should only report the problem;
-* when a safe operating state should be restored.
-
-## State Reconstruction
-
-Improve restart recovery by reconstructing strategy from verified inverter settings.
-
-Examples:
-
-```text
-SBU + OSO
-→ Solar
-
-SUB + OSO
-→ Hybrid Grid Hold
-
-SUB + SNU
-→ active grid-charging strategy requiring context reconstruction
-```
-
-## External Watchdog
-
-Investigate an external heartbeat / watchdog capable of detecting when EnergyHub itself is no longer functioning.
-
-EnergyHub must never automatically restart the inverter.
-
-Status:
-
-📋 Planned after configurable strategy work
-
----
-
-# EnergyHub 2.x — Energy Optimization Platform
-
-Goal:
-
-Optimize the monetary and technical value of home energy across different hardware ecosystems.
-
-## Multi-Vendor Platform
-
-* Multiple inverter support
-* Deye
-* GoodWe
-* Victron
-* Additional inverter and BMS vendors
-* Device capability abstraction
-* Multi-inverter architecture
-
-## Economic Optimization
-
-* Dynamic electricity tariffs
-* Energy price forecasting
-* Import optimization
-* Export optimization
-* Net Billing optimization
-* Smart export
-* Smart charging
-* Battery degradation models
-* Cost-aware battery reserve management
-
-Core question:
-
-> Is it better to consume, store, import or export energy now?
-
-Status:
-
-📋 Future
-
----
-
-# EnergyHub 3.x — Full Home Energy Management System
-
-Goal:
-
-Coordinate the complete household energy ecosystem.
-
-Future scope:
-
-* solar generation;
-* weather forecasting;
-* dynamic electricity markets;
-* battery storage;
-* EV charging;
-* vehicle-to-home / vehicle-to-grid where supported;
-* heat pumps;
-* water heating;
-* flexible household loads;
-* grid reliability;
-* energy trading;
-* advanced forecasting;
-* whole-home optimization.
-
-Vision:
-
-```text
-Weather
-+
-Solar Forecast
-+
-House Consumption
-+
-Battery State
-+
-Grid Reliability
-+
-Electricity Prices
-+
-EV Requirements
-+
-Heating Requirements
-        ↓
-EnergyHub
-        ↓
-Explainable Whole-Home Energy Strategy
-```
-
-Status:
-
-📋 Long-term vision
-
----
-
-# Product Principles
-
-EnergyHub should remain:
-
-* Local-first
-* Human-centric
-* Calm
-* Explainable
-* Modular
-* Hardware-aware
-* Progressively automated
-* Safe by design
-* Resilient to communication failures
-
-Automation progression:
-
-```text
-Monitoring
-    ↓
-Reliable Facts
-    ↓
-Health Awareness
-    ↓
-Explainable Decisions
-    ↓
-Validated Automation
-    ↓
-Autonomous Home Operation
-    ↓
-Whole-Home Energy Optimization
-```
-
----
-
-# Success Metric
-
-EnergyHub development is ultimately measured by one question:
-
-> How often does the homeowner need to think about the energy system?
-
-The ideal answer is:
-
-**Almost never.**
+Exact thresholds remain design parameters, not final requirements.
+
+## EnergyHub 2.x — Energy Optimization Platform
+
+- capability-based inverter and battery adapters;
+- economic optimization across tariffs;
+- better forecast uncertainty;
+- EV charging templates;
+- flexible-load prioritization;
+- multi-day reserve planning;
+- measured import/export integration where hardware supports it.
+
+## EnergyHub 3.x — Full Home Energy Management System
+
+- whole-home energy orchestration;
+- multiple generation and storage assets;
+- comfort, cost, resilience, and lifecycle optimization;
+- vendor-independent capability model;
+- explainable policy engine;
+- household and installer product modes.
+
+## Roadmap rule
+
+A roadmap item moves into implementation only when:
+
+- the household outcome is clear;
+- responsibility ownership is defined;
+- safe exits and failure behavior are designed;
+- required telemetry is available;
+- the change can be validated.

@@ -1,1152 +1,355 @@
 # EnergyHub Developer Architecture
 
-> This document describes the current internal structure of EnergyHub 1.0 and the architectural direction for future versions.
+## Purpose
 
----
+This document maps the current implementation to runtime responsibilities. It is intended for developers who need to modify, test, or reconstruct EnergyHub.
 
-# Purpose
+![Technical architecture](Images/Infographic%232_details.png)
 
-EnergyHub should remain understandable as it grows.
+## Runtime entry point
 
-The current project is no longer a collection of scripts. It contains:
+`addon/app/main.py` constructs all services and owns the process lifecycle.
 
-- inverter communication;
-- telemetry processing;
-- MQTT integration;
-- historical services;
-- health monitoring;
-- decision engines;
-- inverter control;
-- operating-mode management;
-- Grid Import estimation;
-- Home Assistant integration.
+Main responsibilities:
 
-This document distinguishes between:
+- load add-on options;
+- construct adapter, services, and publishers;
+- configure MQTT callbacks;
+- publish Discovery and initial state;
+- maintain the one-item mode request queue;
+- run the telemetry loop;
+- schedule QPIWS/QPIRI reads;
+- trigger decisions;
+- monitor target SOCs;
+- reconcile day finalizations;
+- publish confirmed events.
 
-1. the architecture that exists now;
-2. development rules for EnergyHub 1.x;
-3. future abstractions that should be introduced only when required.
-
----
-
-# Current EnergyHub 1.0 Structure
-
-The current application is organized around a small orchestration layer and focused services.
+## Package map
 
 ```text
-addon/
-└── app/
-    ├── main.py
-    ├── config.py
-    ├── models/
-    ├── mqtt/
-    ├── services/
-    └── utils/
+app/
+  adapters/
+    powmr.py
+  models/
+    inverter_state.py
+  mqtt/
+    publisher.py
+  services/
+    autopilot.py
+    battery_health.py
+    daily_summary.py
+    event_bus.py
+    grid_history.py
+    grid_import.py
+    grid_monitor.py
+    grid_stability.py
+    health_monitor.py
+    hybrid_decision.py
+    inverter_controller.py
+    inverter_health.py
+    panic_decision.py
+    system_health.py
+    telemetry.py
+    telemetry_freshness.py
+    watchdog.py
+  utils/
+    json_store.py
+    logger.py
+  config.py
+  main.py
 ```
 
-The exact file list will evolve, but the responsibility boundaries should remain clear.
+## Adapter
 
----
+### `PowMrLocalAdapter`
 
-# `main.py`
-
-`main.py` is the application orchestrator.
-
-Its responsibilities include:
-
-- loading configuration;
-- initializing MQTT;
-- initializing services;
-- connecting callbacks;
-- subscribing to Home Assistant inputs;
-- running the telemetry loop;
-- processing mode requests;
-- scheduling periodic service work;
-- coordinating application startup and shutdown.
-
-`main.py` may coordinate services.
-
-It should not become the permanent home of:
-
-- decision formulas;
-- Grid Import calculations;
-- health rules;
-- PowMr command mappings;
-- MQTT Discovery definitions.
-
-Rule:
-
-> If a block of logic develops its own state, rules, persistence, or tests, it probably belongs in a service.
-
----
-
-# Configuration
-
-`config.py` contains shared runtime configuration and persistent file paths.
-
-Configuration should remain simple and human-readable.
-
-Good user-facing configuration:
-
-```yaml
-serial_port: /dev/ttyUSB0
-protocol: PI30MAX
-poll_interval: 10
-```
-
-Bad user-facing configuration:
-
-```yaml
-command_qpigs: QPIGS
-command_pop02: POP02
-battery_soc_field: battery_capacity
-```
-
-Protocol-specific implementation details should remain inside EnergyHub code.
-
-Future EnergyHub 1.1 strategy parameters should also have clear ownership and safe bounds.
-
-Examples:
-
-- Hybrid target SOC;
-- Hybrid evaluation time;
-- morning exit time;
-- Panic thresholds;
-- Away Mode thresholds.
-
-Technical hardware limits must remain separate from household strategy parameters.
-
----
-
-# Models
-
-The `models/` package contains shared data models.
-
-The central current model is:
+Builds commands as:
 
 ```text
-InverterState
+mpp-solar -p <serial> -P <protocol> -c <command> -o json
 ```
 
-Its purpose is to convert raw inverter telemetry into normalized EnergyHub state.
+Properties:
 
-Current examples:
+- 25-second subprocess timeout;
+- JSON output;
+- one `threading.Lock` around serial command execution;
+- adapter methods return protocol-level data or ACK booleans.
 
-- telemetry validity;
-- Grid Availability;
-- Battery SOC;
-- Battery Voltage;
-- Battery Current;
-- PV Power;
-- House Load;
+## Normalized state
+
+`InverterState` contains:
+
+- `valid`;
+- `grid_available`;
+- battery SOC, voltage, current;
+- PV power;
+- load power;
 - raw telemetry.
 
-Decision and health services should prefer normalized state over raw protocol dictionaries.
+Grid availability is currently derived from AC input voltage greater than 180 V in normalized telemetry. The family dashboard uses the actual voltage and shows online when it is above 1 V because a stabilizer supplies approximately 220 V whenever the upstream grid exists.
 
----
+## MQTT threading and queue
 
-# Telemetry Service
+Paho invokes MQTT callbacks in its network thread. The main loop consumes mode requests.
 
-The Telemetry Service converts raw PowMr data into `InverterState`.
+The queue:
 
-Responsibilities:
+- has `maxsize=1`;
+- is protected by `mode_request_lock` during read/replace/write;
+- stores `mode` and optional notification context;
+- gives `safe_solar` priority.
 
-- validate required telemetry fields;
-- normalize numeric values;
-- determine basic Grid Availability;
-- publish telemetry through MQTT;
-- preserve the latest raw telemetry;
-- produce concise operational logs.
+This is not a general work queue. It represents the latest allowed strategy request, except that a pending safety recovery is preserved.
 
-Current required fields include:
+## MQTT input topics
 
-```text
-battery_capacity
-ac_output_active_power
-pv1_charging_power
-```
-
-Invalid telemetry must not be treated as valid current state.
-
----
-
-# MQTT Package
-
-The `mqtt/` package owns Home Assistant and MQTT integration.
-
-Responsibilities include:
-
-- connection handling;
-- MQTT Discovery;
-- stable topic definitions;
-- telemetry publishing;
-- retained state publishing;
-- Home Assistant input subscriptions;
-- notification events.
-
-Application logic should not scatter MQTT topic strings throughout unrelated services.
-
-Where practical, MQTT ownership should remain centralized.
-
----
-
-# MQTT Publisher
-
-The MQTT Publisher translates EnergyHub values into MQTT entities.
-
-Current responsibilities include publishing:
-
-- inverter telemetry;
-- Grid information;
-- health information;
-- operating mode;
-- inverter settings;
-- Panic Decision;
-- Autopilot state;
-- Daily Summary;
-- Grid Import.
-
-The publisher should remain an integration component.
-
-It should not contain:
-
-- Hybrid formulas;
-- Panic rules;
-- recovery decisions;
-- inverter command execution.
-
----
-
-# Services
-
-The `services/` package contains focused stateful application behavior.
-
-A service may own:
-
-- rules;
-- state;
-- persistence;
-- periodic evaluation;
-- event handling;
-- a specific subsystem.
-
-Current service categories include:
-
-- telemetry;
-- grid monitoring and history;
-- Grid Confidence;
-- Daily Summary;
-- health monitoring;
-- Hybrid decisions;
-- Panic decisions;
-- inverter control;
-- operating mode;
-- Autopilot;
-- Grid Import estimation.
-
----
-
-# Grid Services
-
-Grid-related services own historical Grid Availability and Grid Confidence.
-
-Responsibilities include:
-
-- observing Grid Availability;
-- storing outage history;
-- calculating 24-hour availability;
-- calculating 48-hour availability;
-- deriving Grid Confidence.
-
-Decision services consume Grid Confidence.
-
-They should not reimplement grid-history calculations.
-
----
-
-# Daily Summary Service
-
-The Daily Summary Service owns reusable daily historical knowledge.
-
-Current inputs include:
-
-- Daily House Consumption;
-- Solar Forecast Today;
-- Solar Forecast Tomorrow;
-- Daily Solar Surplus Estimated.
-
-Current stored values include:
-
-- House Consumption;
-- Solar Forecast;
-- Solar Surplus Estimated;
-- Grid Availability.
-
-The service owns:
-
-- persistence;
-- daily snapshots;
-- historical loading;
-- MQTT publication.
-
-Dashboards should consume Daily Summary values instead of reproducing historical calculations.
-
----
-
-# Health Services
-
-Health monitoring is divided by responsibility.
-
-Current subsystems:
+Prefix:
 
 ```text
-Communication Health
-Battery Health
-Telemetry Freshness
-Inverter Health
-        ↓
-System Health
+energyhub/input/ha/#
 ```
 
-Each health service should provide:
+Current inputs:
 
-```text
-state
-+
-reason
-```
+| Suffix | Retained | Purpose |
+|---|---:|---|
+| `autopilot` | yes | master permission state |
+| `inverter_mode` | no | `evaluate_hybrid`, `solar`, `panic` and supported requests |
+| `solar_forecast_today_live` | yes | live Panic forecast |
+| `solar_forecast_tomorrow_live` | yes | live Hybrid forecast |
+| `daily_house_consumption` | yes | scheduled consumption input |
+| `solar_forecast_today` | yes | scheduled Daily Summary input |
+| `solar_forecast_tomorrow` | yes | scheduled/fallback forecast input |
+| `daily_solar_surplus_estimated` | yes | scheduled Daily Summary input |
+| `daily_summary_snapshot` | yes | atomic JSON historical snapshot |
 
-Health detection should remain separate from recovery execution.
+## Runtime cadence
 
-A health service may report a problem without attempting to fix it.
+| Task | Cadence |
+|---|---|
+| QPIGS telemetry | configured, default 10 seconds |
+| QPIWS warnings | 60 seconds |
+| QPIRI settings | 60 seconds |
+| automatic Panic evaluation | 15 minutes, plus explicit reevaluation events |
+| raw telemetry disk snapshot | at most 60 seconds |
+| incremental Grid Import save | at most 60 seconds |
+| Hybrid evaluation | HA trigger at 23:50 |
+| Daily Summary atomic snapshot | HA trigger at 23:51 |
+| Solar restoration | HA trigger at 07:00 |
 
----
+## Startup sequence
 
-# Hybrid Decision Engine
+1. Load options.
+2. Load persisted Inverter Controller, Grid History, Grid Import, and Daily Summary state.
+3. Connect MQTT.
+4. Publish Discovery.
+5. Subscribe to HA input prefix.
+6. Publish EnergyHub process online and inverter telemetry offline.
+7. Receive retained Autopilot and forecast inputs.
+8. Read QPIGS.
+9. Read QPIRI.
+10. Reconstruct strategy.
+11. Accept consistent state without writes, or queue one safe Solar recovery if Autopilot is enabled and reconstruction is incomplete.
 
-`hybrid_decision.py` owns the daily Hybrid decision.
+Startup recovery waits for both:
 
-Inputs:
+- QPIRI reconstruction completion;
+- retained Autopilot state reception.
 
-- current Battery SOC;
-- current-day House Consumption;
-- next-day Solar Forecast;
-- nominal battery capacity.
+## Telemetry path
 
-Calculation:
+`TelemetryService.create_state()` validates required data and converts values.
 
-```text
-Battery Refill Required
-=
-Battery Capacity × Missing SOC Percentage
-```
+A valid sample:
 
-```text
-Required Energy
-=
-Today's House Consumption
-+
-Battery Refill Required
-```
+- publishes all configured raw sensors;
+- publishes `powmr/status=online`;
+- updates the raw snapshot;
+- feeds health, history, import, decisions, and event bus.
 
-Decision:
+An invalid sample:
 
-```text
-Forecast Tomorrow >= Required Energy
-→ Solar
+- increments Communication Watchdog errors;
+- publishes raw inverter availability offline;
+- leaves EnergyHub diagnostics available.
 
-Forecast Tomorrow < Required Energy
-→ Hybrid
-```
+## Health services
 
-The service should return an explainable result.
+### Communication Watchdog
 
-It should not directly send PowMr commands.
+States:
 
----
+- starting;
+- online;
+- recovering;
+- stale;
+- offline.
 
-# Panic Decision Engine
+### Battery Health
 
-The Panic Decision Engine owns automatic daytime risk evaluation.
+Current rules:
 
-Inputs include:
+- missing/invalid SOC → warning;
+- SOC below 15% → warning;
+- absolute SOC jump of at least 2 percentage points while both readings are at or below 95% → warning.
 
-- Operating Mode;
-- Grid Confidence;
-- PV Power;
-- current SOC;
-- current solar forecast;
-- previous Daily House Consumption.
+This is a warning service, not yet a complete telemetry quarantine layer.
 
-Current evaluation window:
+### Telemetry Freshness
 
-```text
-12:00–23:50
-```
+- no valid telemetry → stale;
+- last valid telemetry age at least 60 seconds → stale;
+- otherwise fresh.
 
-Current common conditions:
+Unchanged load duration is published separately.
 
-```text
-PV < 200 W
-AND
-Forecast Today < Previous Daily Consumption × 1.20
-```
+### Inverter Health
 
-The service should produce:
+QPIWS values equal to `1` are treated as active warnings, excluding command metadata and reserved fields.
 
-```text
-decision
-+
-reason
-+
-target SOC when applicable
-```
+### System Health
 
-It should not directly send inverter commands.
+- communication offline/unavailable → unavailable;
+- starting/recovering/stale or any component warning → warning;
+- otherwise normal.
 
----
+## Inverter Controller
 
-# Inverter Controller
+### Constants
 
-The Inverter Controller owns execution of operating strategies on the physical inverter.
+- write attempts: 3;
+- retry delay: 1 second;
+- settle delay: 2 seconds;
+- controller state schema: 1.
 
-Responsibilities include:
+### Menu 01
 
-- Setting 01 changes;
-- Setting 16 changes;
-- command order;
-- ACK handling;
-- QPIRI verification;
-- bounded retries;
-- transition state;
-- transition failure state;
-- settling delays.
+`set_output_priority()`:
 
-Current verified mappings:
+1. sends POP command;
+2. requires ACK;
+3. reads QPIRI up to the configured verification attempts;
+4. compares raw `output_source_priority` with the expected value;
+5. returns success only after a match.
 
-```text
-POP01 → SUB
-POP02 → SBU
+### Menu 16
 
-PCP01 → SNU
-PCP02 → OSO
-PCP03 → CSO
-```
+`set_charger_priority()`:
 
-High-level code requests:
+1. sends PCP command;
+2. requires ACK;
+3. stores `known_charger_priority`;
+4. persists immediately.
 
-```text
-Solar
-Hybrid
-Panic
-```
+There is no independent read-back.
 
-The controller performs the required PowMr-specific execution.
+### Strategy transitions
 
----
+#### Solar
 
-# Operating Mode Service
+Write OSO, then SBU. Confirm only when both succeed.
 
-Operating Mode represents the confirmed EnergyHub strategy.
+#### Hybrid Charging
 
-Current states include:
+Write/verify SUB, then ACK-confirm SNU. On partial failure, attempt Solar recovery.
 
-```text
-solar
-hybrid_charging
-hybrid_grid_hold
-panic
-away
-transitioning
-transition_failed
-unknown
-```
+#### Hybrid Grid Hold
 
-Operating Mode should include:
+Keep/verify SUB, then ACK-confirm OSO. On either failure, attempt one Solar recovery and preserve combined failure detail if recovery fails.
 
-```text
-mode
-+
-reason
-```
+#### Panic
 
-A requested mode and a confirmed physical mode are not the same thing.
+Persist target, write/verify SUB, ACK-confirm SNU. On partial failure, attempt Solar recovery.
 
-EnergyHub should publish a confirmed mode only after appropriate execution and verification.
+## Decision engines
 
----
+### Hybrid
 
-# Autopilot
+Pure input/output service. See [Decision Engine](DECISION_ENGINE.md).
 
-Autopilot controls whether automatic inverter strategy execution is allowed.
+### Panic
 
-Autopilot is separate from:
+Pure input/output service with time-window checks. The current service does not receive live PV power.
 
-- Operating Mode;
-- Away Mode;
-- manual Panic control.
+## Target monitoring
 
-When disabled, automatic decision execution should stop and EnergyHub should preserve or restore the defined safe strategy according to policy.
+The main loop monitors confirmed modes:
 
----
+- Hybrid Charging + SOC ≥ 80 → enter Grid Hold;
+- Panic + SOC ≥ target → restore Solar;
+- successful Panic exit requests an immediate reevaluation.
 
-# Grid Import Service
+## Notifications
 
-`grid_import.py` estimates Grid Import because the current PowMr interface does not provide a reliable accumulated import counter.
+Decision context is attached to the queued request. After transition processing:
 
-The service owns:
+- success → event type `automatic_mode_activation`;
+- failure → event type `automatic_mode_activation_failed`, including current mode and error.
 
-- mode-aware power estimation;
-- integration from power to energy;
-- daily accumulation;
-- midnight reset;
-- persistence;
-- MQTT publication inputs.
+No activation event is published at decision time.
 
-Current logic:
+## Persistence internals
 
-Solar:
+`atomic_write_json()` creates a temporary file beside the target, flushes and fsyncs it, replaces the target atomically, then fsyncs the directory where supported.
 
-```text
-Grid Import
-=
-House Load
-+ Battery Charging Power
-- Battery Discharging Power
-- PV Power
-```
+This reduces corruption risk after sudden power loss.
 
-Hybrid Charging / Panic:
+## Daily Summary internals
 
-```text
-Grid Import
-=
-House Load
-+
-Battery Charging Power
-```
+The service accepts individual numeric inputs but does not snapshot on them.
 
-Hybrid Grid Hold:
+The atomic JSON snapshot requires:
 
-```text
-Grid Import
-=
-House Load
-```
+- current date;
+- source timestamp;
+- daily house consumption;
+- forecast today;
+- estimated solar surplus.
 
-Solar-mode estimates below 50 W are treated as zero.
+A duplicate source timestamp is idempotently accepted.
 
-The service must avoid integrating:
+## Grid Import internals
 
-- invalid telemetry;
-- excessive telemetry gaps.
+Schema version: 2.
 
-Grid Import is informational rather than billing-grade.
+Tracked fields:
 
----
+- house energy;
+- battery energy;
+- current power;
+- yesterday total;
+- SUB interval start/max SOC;
+- already-accounted battery contribution;
+- pending day finalizations.
 
-# Notification Flow
+Intervals longer than 60 seconds are not integrated as house energy, preventing a long blocked loop from creating a false jump.
 
-EnergyHub owns significant automatic decision events.
+## Entity stability
 
-Home Assistant owns delivery.
+MQTT Discovery includes:
 
-```text
-Decision Service
-      ↓
-EnergyHub Notification Event
-      ↓
-MQTT
-      ↓
-Home Assistant Automation
-      ↓
-Persistent / Mobile / Future Telegram Notification
-```
+- stable `unique_id`;
+- explicit `default_entity_id` for fresh HA installations;
+- process or combined availability as appropriate.
 
-Current MQTT topic:
+Existing HA registry IDs are not automatically renamed by `default_entity_id`; migrations must preserve unique ID and rename through Home Assistant.
 
-```text
-energyhub/event/notification
-```
+## Known technical debt
 
-This keeps decision context inside EnergyHub while avoiding notification-channel logic in the Core.
+- `main.py` is large;
+- no executable test suite;
+- dependencies are unpinned;
+- graceful shutdown is implicit;
+- constants are duplicated across services;
+- HA owns the 07:00 schedule;
+- Grid Import is approximate during daytime SUB with simultaneous PV;
+- configuration is not yet user-editable.
 
----
+## Safe refactoring order
 
-# Home Assistant Responsibilities
-
-Home Assistant currently owns:
-
-- dashboards;
-- helpers;
-- timers;
-- selected household automations;
-- Solcast integration;
-- user controls;
-- notification delivery.
-
-EnergyHub currently owns:
-
-- inverter telemetry;
-- energy intelligence;
-- historical Grid knowledge;
-- health evaluation;
-- Hybrid and Panic decisions;
-- inverter strategy execution;
-- Grid Import estimation.
-
-The responsibility boundary should remain explicit.
-
----
-
-# Away Mode
-
-Away Mode v1 currently uses Home Assistant automation for first-floor heat-pump control.
-
-Inputs:
-
-- Away Mode helper;
-- room temperature;
-- Battery SOC;
-- PV Power.
-
-Start conditions:
-
-```text
-Away Mode ON
-Temperature < 18°C
-SOC > 95%
-PV > 200 W
-```
-
-Stop conditions:
-
-```text
-Temperature >= 23°C
-OR
-SOC <= 81%
-```
-
-EnergyHub/Home Assistant tracks load ownership using:
-
-```text
-input_boolean.energyhub_away_heat_pump_active
-```
-
-Rule:
-
-> An automation should automatically stop a load only when that automation previously started it.
-
-This ownership principle should be reused for future flexible loads.
-
----
-
-# Home Assistant Repository Structure
-
-Current repository structure:
-
-```text
-homeassistant/
-├── live/
-│   ├── config/
-│   │   ├── automations.yaml
-│   │   ├── configuration.yaml
-│   │   ├── scenes.yaml
-│   │   └── scripts.yaml
-│   └── storage/
-│       ├── input_boolean
-│       ├── input_number
-│       ├── timer
-│       ├── lovelace.dashboard_powmr1
-│       ├── lovelace_dashboards
-│       └── lovelace_resources
-└── legacy/
-```
-
-## `live/`
-
-Contains selected current Home Assistant configuration synchronized from the real installation.
-
-## `legacy/`
-
-Contains older manually exported files retained for reference.
-
-The `legacy/` tree is not the authoritative current configuration.
-
----
-
-# Deployment Workflow
-
-EnergyHub application code is deployed from Git to Home Assistant.
-
-Current workflow:
-
-```text
-Edit Code
-    ↓
-Review Locally
-    ↓
-tools/dev/deploy-to-ha.ps1
-    ↓
-sync-to-ha.ps1
-    ↓
-robocopy addon/ → Home Assistant add-on directory
-    ↓
-Restart EnergyHub Add-on Manually
-    ↓
-Inspect Logs
-    ↓
-Test Behavior
-    ↓
-Commit
-```
-
-Manual add-on restart is intentionally preserved in the current workflow.
-
-It provides a clear checkpoint before the changed runtime is activated.
-
----
-
-# Home Assistant Synchronization Workflow
-
-Selected Home Assistant configuration is synchronized back to Git.
-
-Current workflow:
-
-```text
-Edit Home Assistant
-    ↓
-Test in Home Assistant
-    ↓
-tools/dev/sync-from-ha.ps1
-    ↓
-Copy approved files into homeassistant/live/
-    ↓
-Review Git Changes
-    ↓
-Commit
-```
-
-The complete Home Assistant `.storage` directory must never be copied into Git.
-
-Only explicitly approved files should be synchronized.
-
----
-
-# Git Workflow
-
-Recommended current workflow:
-
-```text
-Make One Logical Change
-    ↓
-Deploy / Sync
-    ↓
-Test
-    ↓
-Inspect Logs and Home Assistant
-    ↓
-git status
-    ↓
-Review Diff
-    ↓
-Commit
-```
-
-Large development sessions may contain several related changes, but commits should still describe coherent milestones.
-
-Generated runtime data should not be committed unless intentionally used as fixtures or documentation examples.
-
----
-
-# Logging
-
-Logs should describe system behavior.
-
-Good:
-
-```text
-Automatic Panic evaluation:
-status=no_action
-reason=PV power is still sufficient: 453 W >= 200 W
-```
-
-Good:
-
-```text
-Starting transition to Solar:
-Menu 01=SBU
-Menu 16=OSO
-```
-
-Less useful alone:
-
-```text
-POP02 OK
-```
-
-Protocol-level details may appear in debug information, but normal logs should answer:
-
-- What happened?
-- Why did it happen?
-- Did it succeed?
-- Is user action required?
-
----
-
-# Error Handling
-
-EnergyHub should fail safely.
-
-Examples:
-
-- invalid telemetry is rejected;
-- communication failure does not terminate the complete process;
-- MQTT reconnects;
-- failed inverter commands are retried only within bounded limits;
-- mode success is not claimed before verification;
-- Grid Import is not integrated from invalid data;
-- inverter faults are detected but do not trigger automatic inverter restart.
-
-Graceful degradation is preferred over uncontrolled recovery.
-
----
-
-# Recovery Architecture
-
-Recovery is a separate architectural concern.
-
-Current recovery-related behavior includes:
-
-- communication retries;
-- MQTT reconnect;
-- telemetry failure handling;
-- bounded inverter-command verification;
-- transition failure state;
-- safe Solar restoration.
-
-Future recovery services should own:
-
-- failure classification;
-- bounded recovery attempts;
-- cooldown;
-- verification;
-- escalation;
-- persistence of recovery state.
-
-Recovery design is documented separately in:
-
-```text
-13-Recovery-Strategy.md
-```
-
----
-
-# Restart Strategy Reconstruction
-
-A high-priority future improvement is reconstructing EnergyHub strategy from verified inverter settings after restart.
-
-Intended mapping:
-
-```text
-SUB + SNU → Hybrid Charging
-SUB + OSO → Hybrid Grid Hold
-SBU + OSO → Solar
-```
-
-This logic should live in an operating-state or recovery service.
-
-It should not become another large conditional block inside `main.py`.
-
----
-
-# EnergyHub 1.1 Configurable Parameters
-
-Future strategy parameters should be centralized.
-
-Candidates include:
-
-- Hybrid evaluation time;
-- Hybrid target SOC;
-- Hybrid morning exit time;
-- Panic thresholds;
-- Panic targets;
-- Away Mode SOC thresholds;
-- Away Mode temperature thresholds;
-- Away Mode PV threshold.
-
-Recommended direction:
-
-```text
-Configuration Source
-        ↓
-Validation / Safe Bounds
-        ↓
-Strategy Configuration Model
-        ↓
-Decision Services
-```
-
-Decision services should receive validated configuration.
-
-They should not independently read arbitrary Home Assistant helpers throughout the codebase.
-
----
-
-# Testing Strategy
-
-Every service should be testable independently where practical.
-
-## Telemetry Tests
-
-Test:
-
-- valid telemetry;
-- missing required fields;
-- invalid numeric values;
-- Grid Availability detection.
-
-## Decision Tests
-
-Test:
-
-- Hybrid Solar branch;
-- Hybrid charging branch;
-- Panic no-action reasons;
-- unstable-grid target;
-- risk target;
-- mode restrictions.
-
-## Grid Import Tests
-
-Test:
-
-- Solar balance;
-- Solar noise floor;
-- Hybrid Charging;
-- Panic;
-- Grid Hold;
-- daily reset;
-- restart persistence;
-- invalid telemetry;
-- long telemetry gaps.
-
-## Inverter Controller Tests
-
-Test:
-
-- ACK success;
-- ACK failure;
-- verification success;
-- verification mismatch;
-- bounded retries;
-- transition failure;
-- safe Solar restoration.
-
-## Recovery Tests
-
-Test:
-
-- MQTT failure;
-- serial failure;
-- timeout;
-- restart during every operating mode;
-- inconsistent inverter settings.
-
----
-
-# Current Development Rules
-
-## Rule 1 — Keep `main.py` as an orchestrator
-
-Do not allow new subsystem logic to accumulate permanently in `main.py`.
-
-## Rule 2 — One service, one clear responsibility
-
-A service should have a clear reason to exist.
-
-## Rule 3 — Decisions do not send protocol commands
-
-Decision services produce strategy decisions.
-
-The Inverter Controller executes them.
-
-## Rule 4 — Do not duplicate historical calculations
-
-Calculate reusable historical knowledge once.
-
-## Rule 5 — Publish reasons, not only states
-
-Important states should include human-readable reasons.
-
-## Rule 6 — Recovery must be bounded
-
-No infinite retry loops.
-
-## Rule 7 — Never automatically restart the inverter
-
-The inverter owns its internal protection.
-
-## Rule 8 — Verify physical state after writes
-
-ACK alone is not sufficient when read-back verification is available.
-
-## Rule 9 — Do not prematurely generalize EnergyHub 1.0
-
-Make the current installation reliable first.
-
-Introduce abstractions when real requirements justify them.
-
-## Rule 10 — Keep Home Assistant configuration reviewable
-
-Synchronize selected current HA configuration into Git and review changes before committing.
-
----
-
-# Future Device Abstraction Layer
-
-A complete device abstraction layer is a future architecture goal, not the current codebase structure.
-
-Future example:
-
-```python
-inverter.set_output_source("solar_battery_utility")
-inverter.set_charger_source("solar_and_utility")
-battery.get_soc()
-battery.get_power()
-```
-
-Future vendor adapters may support:
-
-- PowMr;
-- Deye;
-- GoodWe;
-- Victron;
-- additional inverter and BMS vendors.
-
-The abstraction should emerge from real multi-vendor requirements.
-
----
-
-# Future Capability Architecture
-
-Long-term EnergyHub code should reason about capabilities.
-
-Examples:
-
-```text
-Battery Storage
-Solar Generation
-Grid Supply
-House Heating
-Water Heating
-EV Charging
-Energy Export
-```
-
-Future decision code may request:
-
-```text
-charge_battery(target_soc=80)
-```
-
-A hardware adapter would translate that request into vendor-specific commands.
-
----
-
-# Long-Term Repository Direction
-
-Possible future structure:
-
-```text
-EnergyHub/
-├── addon/
-│   └── app/
-│       ├── models/
-│       ├── services/
-│       ├── mqtt/
-│       ├── adapters/
-│       ├── capabilities/
-│       ├── recovery/
-│       └── utils/
-├── homeassistant/
-│   ├── live/
-│   └── legacy/
-├── tools/
-│   ├── dev/
-│   ├── diagnostics/
-│   └── experiments/
-└── docs/
-```
-
-This is a direction, not a required immediate refactor.
-
----
-
-# Architecture Principle
-
-Current EnergyHub 1.0:
-
-```text
-main.py
-speaks orchestration language
-
-Decision Services
-speak strategy language
-
-Inverter Controller
-speaks control language
-
-PowMr integration
-speaks device language
-
-MQTT
-speaks integration language
-
-Home Assistant
-speaks user and automation language
-```
-
-Future EnergyHub:
-
-```text
-High-level code
-speaks EnergyHub language
-
-Capability Layer
-speaks energy-system language
-
-Adapters
-speak device language
-
-Protocols
-speak transport language
-```
-
----
-
-# Goal
-
-EnergyHub should become a platform, not a collection of scripts.
-
-The path to that goal is not maximum abstraction today.
-
-The path is:
-
-```text
-Clear Responsibilities
-        ↓
-Reliable Real-World Behavior
-        ↓
-Explainable Decisions
-        ↓
-Safe Autonomous Control
-        ↓
-Reusable Services
-        ↓
-Validated Abstractions
-        ↓
-Multi-Vendor Energy Platform
-```
-
-The current priority is to make EnergyHub 1.0 reliable, understandable, and maintainable while preserving a clean path toward the larger architecture.
+1. Add pure service tests.
+2. Add controller tests with a fake adapter.
+3. Add queue/notification integration tests.
+4. Extract lifecycle coordinators one responsibility at a time.
+5. Preserve MQTT contracts and persisted schemas.

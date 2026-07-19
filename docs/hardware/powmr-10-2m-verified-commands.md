@@ -1,260 +1,137 @@
 # PowMr 10.2M Verified Commands
 
-Protocol:
+## Hardware
 
-PI30MAX
+- Inverter: PowMr 10.2M
+- Protocol: PI30MAX
+- Transport: USB-RS232
+- Tool: `mpp-solar`
 
----
+This file records commands verified on the installed inverter. It is not a universal PI30MAX specification.
 
-## Read Commands
+## Read commands
 
 ### QPIGS
 
-Realtime inverter telemetry.
+Used for normal telemetry, including available values for:
 
-Verified working.
+- AC input voltage/frequency;
+- AC output voltage/frequency/power/load;
+- battery voltage/SOC/current;
+- PV1 voltage/current/power;
+- inverter temperature.
 
----
-
-### QMOD
-
-Current inverter operating mode.
-
-Verified working.
-
-Observed values:
-
-- `Battery`
-- `Line`
-
----
+Poll interval: default 10 seconds.
 
 ### QPIRI
 
-Current inverter configuration and rated information.
+Used for rated/settings data and Menu 01 read-back.
 
-Verified working.
+Relevant raw values:
 
-Used to verify inverter settings after write commands.
+- `Solar Battery Utility` → SBU;
+- `Solar Utility Battery` → SUB.
 
-Important fields:
-
-- `output_source_priority`
-- `charger_source_priority`
-- `max_ac_charging_current`
-- `max_charging_current`
-
----
+Read interval: 60 seconds.
 
 ### QPIWS
 
-Inverter warning and fault status.
+Used for inverter warning/fault bits.
 
-Verified working.
+Read interval: 60 seconds.
 
-Used by Inverter Health Monitor.
+### QMOD
 
----
+Verified for operating-source observation during manual tests. Current strategy truth is represented by EnergyHub controller state plus settings reconstruction rather than QMOD alone.
 
-## Write Commands
+### QMUCHGCR / QMCHGCR
 
-### Setting 01 — Output Source Priority
+Verified for utility charging-current related values during investigation. They are not part of the current autonomous strategy transition path.
 
-Programmatic control verified.
+## Write commands
 
-| Command | Inverter Setting | QPIRI Value |
+### Menu 01 — Output Source Priority
+
+| Desired value | Command | Result |
 |---|---|---|
-| `POP01` | SUB | Solar Utility Battery |
-| `POP02` | SBU | Solar Battery Utility |
+| SUB | `POP01` | ACK, then QPIRI read-back |
+| SBU | `POP02` | ACK, then QPIRI read-back |
 
-Verification method:
+EnergyHub treats Menu 01 as verified only after QPIRI matches the expected raw value.
 
-1. Send command.
-2. Verify `ACK`.
-3. Read `QPIRI`.
-4. Read `QMOD`.
-5. Verify setting on physical inverter display.
-6. Restore original setting.
+### Menu 16 — Charger Source Priority
 
-Observed behavior:
+| Desired value | Command | Result |
+|---|---|---|
+| SNU | `PCP01` | ACK-confirmed |
+| OSO | `PCP02` | ACK-confirmed |
+| CSO | `PCP03` | mapping identified, not used by current strategies |
 
-#### POP01 → SUB
+No verified query returns Menu 16. EnergyHub persists the last ACK-confirmed value.
 
-Command:
+### Maximum utility charging current
 
-`POP01`
+`MUCHGCxxx` commands were investigated and may be used in future configurable strategy work. Current 1.0 strategy transitions do not modify charging current dynamically.
 
-Result:
-
-- command response: `ACK`
-- QPIRI `output_source_priority`: `Solar Utility Battery`
-- QMOD: `Line`
-- physical inverter display: `SUB`
-
-#### POP02 → SBU
-
-Command:
-
-`POP02`
-
-Result:
-
-- command response: `ACK`
-- QPIRI `output_source_priority`: `Solar Battery Utility`
-- physical inverter display: `SBU`
-
-This mapping was experimentally verified on the PowMr 10.2M inverter.
-
----
-
-### Setting 16 — Charger Source Priority
-
-Programmatic control verified.
-
-| Command | Inverter Setting |
-|---|---|
-| `PCP01` | SNU |
-| `PCP02` | OSO |
-| `PCP03` | CSO |
-
-Verified mapping:
-
-- `PCP01` → SNU
-- `PCP02` → OSO
-- `PCP03` → CSO
-
-These commands control inverter Setting 16.
-
----
-
-### Maximum Utility Charging Current
-
-Programmatic control verified.
-
-Command format:
-
-`MUCHGCxxx`
-
-Example:
-
-`MUCHGC030`
-
-sets the maximum utility charging current to:
-
-30 A
-
-Current EnergyHub target:
-
-30 A
-
----
-
-## EnergyHub Operating Strategy Mapping
-
-The verified inverter commands allow EnergyHub to implement controlled operating strategies.
+## Strategy mapping
 
 ### Solar
 
-Configuration:
-
-- Setting 01: SBU
-- Setting 16: OSO
-
-Commands:
-
-- `POP02`
-- `PCP02`
-
----
+```text
+POP02 → SBU
+PCP02 → OSO
+```
 
 ### Hybrid Charging
 
-Configuration:
+```text
+POP01 → SUB
+PCP01 → SNU
+```
 
-- Setting 01: SUB
-- Setting 16: SNU
+### Hybrid Grid Hold
 
-Commands:
+```text
+POP01 → SUB
+PCP02 → OSO
+```
 
-- `POP01`
-- `PCP01`
+### Panic
 
-Target:
+```text
+POP01 → SUB
+PCP01 → SNU
+```
 
-Charge battery to 80% SOC.
+Hybrid Charging and Panic share the same physical menu combination. Persisted strategy context and Panic target distinguish them.
 
-After reaching target SOC, restore Solar configuration:
+## Write policy
 
-- `POP02`
-- `PCP02`
+- maximum three write attempts;
+- one-second delay between attempts;
+- Menu 01 requires QPIRI verification;
+- Menu 16 requires ACK and immediate persistence;
+- partial failure attempts bounded Solar recovery;
+- no automatic inverter restart.
 
----
+## Unsupported or unavailable features
 
-### Panic Charging
+Tests found no usable support for:
 
-Configuration:
+- QPIGS2;
+- QOPPT;
+- QET;
+- QLT;
+- QED;
+- reliable PV2/output2/lifetime counters through the current path.
 
-- Setting 01: SUB
-- Setting 16: SNU
+## Terminology
 
-Commands:
+Use:
 
-- `POP01`
-- `PCP01`
+- **verified** for Menu 01 after read-back;
+- **ACK-confirmed** for Menu 16;
+- **remembered** for persisted context;
+- **estimated** for Grid Import.
 
-Target:
-
-Charge battery to 95% SOC.
-
-After reaching target SOC, restore Solar configuration:
-
-- `POP02`
-- `PCP02`
-
----
-
-## Command Verification Policy
-
-EnergyHub must not assume that a successful write request changed the inverter configuration.
-
-Write operations should be verified.
-
-Expected sequence:
-
-1. Send write command.
-2. Check for `ACK`.
-3. Read inverter configuration using `QPIRI`.
-4. Verify that the requested setting is active.
-5. Report or recover from failure when the requested state is not confirmed.
-
-This policy should be used by the Inverter Strategy Controller.
-
----
-
-## Tested but Unsupported
-
-The following commands were tested and are not supported by this inverter:
-
-- `QPIGS2`
-- `QOPPT`
-- `QET`
-- `QEM`
-- `QEY`
-- `QED`
-- `QLD`
-- `QLM`
-- `QLT`
-- `QLY`
-
----
-
-## Current Limitations
-
-Unavailable from inverter:
-
-- PV2 telemetry
-- Second output telemetry
-- Grid import/export energy counters
-- Daily energy statistics
-
-These limitations are hardware/protocol limitations rather than EnergyHub limitations.
+Do not describe Menu 16 as read-back verified.

@@ -1,374 +1,182 @@
-# House Model
+# EnergyHub House Model
 
 ## Overview
 
-EnergyHub manages the energy consumption of a three-floor country house.
-
-The objective is to maximize the use of solar energy while maintaining comfort and minimizing electricity costs.
-
----
-
-# Energy Sources
-
-## Solar PV
-
-- PowMr 10.2M inverter
-- LONGi Hi-MO X10 LR7-54HVH-490M panels
-- Two PV fields with different tilt angles
-- Field 1: 7 × 490 W = 3.43 kWp, tilt 35°
-- Field 2: 8 × 490 W = 3.92 kWp, tilt 65°
-- Approximate azimuth: 130°
-- PI30MAX currently exposes reliable PV1 telemetry only
-- Solcast provides forecast data for both PV fields
-
-## Battery
-
-- LiFePO4
-- 16 kWh
-- Primary energy buffer
-
-## Grid
-
-- Utility power
-- May become unavailable
-- Night tariff available
-- Grid Availability is monitored historically
-- Grid Confidence is derived from recent availability
-- Grid Import is estimated by EnergyHub because the inverter does not expose a reliable import counter
-
----
-
-# Building
-
-## Basement
-
-### Equipment
-
-- Water system
-- Boiler
-
----
-
-## Floor 1
-
-### Climate
-
-- Heat pump
-- Temperature sensor
-
-### Occupancy
-
-- Motion sensor
-
----
-
-## Floor 2
-
-### Climate
-
-- Heat pump
-- Temperature sensors
-
-### Rooms
-
-- Kids room
-- Toilet
-
----
-
-## Floor 3
-
-### Climate
-
-- Heat pump
-- Temperature sensor
-
----
-
-# Outside
-
-## Weather
-
-- Outdoor temperature
-- Solar forecast
-- Sunrise
-- Sunset
-
----
-
-# Flexible Loads
-
-## Heat Pumps
-
-Each floor has an independently controlled air-to-air heat pump.
-
-Current EnergyHub automation uses the first-floor heat pump during Away Mode to convert available solar energy into useful thermal energy.
-
-EnergyHub tracks automation ownership so that it stops a load only when EnergyHub previously started it.
-
-## Boiler
-
-- 40 L electric water heater
-- Approximate energy requirement from 10°C to 70°C: 3 kWh
-- Future candidate for flexible-load optimization
-
----
-
-# Future
-
-## Electric Vehicle
-
-Status:
-Planned
-
-Charging priority:
-Solar surplus
-
----
-
-# Operating Strategies
-
-Solar
-
-Hybrid Charging
-
-Hybrid Grid Hold
-
-Panic
-
-Away
-
----
-
-# Decision Inputs
-
-Battery SOC
-
-PV production
-
-Grid availability
-
-Grid confidence
-
-Weather forecast
-
-Outdoor temperature
-
-Indoor temperatures
-
-Occupancy
-
-Time
-
-Electricity tariff
-
-Manual override
-
-1st floor
-Temperature: sensor.miaomiaoce_t2_e515_temperature
-Humidity: sensor.miaomiaoce_t2_e515_relative_humidity
-Heat pump plug: switch.lumi_v1_64d7_switch
-
-2nd floor
-Temperature: sensor.miaomiaoce_t2_1bf2_temperature
-Humidity: sensor.miaomiaoce_t2_1bf2_relative_humidity
-Heat pump plug: pending Tuya
-
-3rd floor
-Temperature: sensor.lumi_weather_v1_b318_temperature
-Humidity: sensor.lumi_weather_v1_b318_relative_humidity
-Heat pump plug: switch.chuangmi_212a01_ea40_switch
-Power: sensor.chuangmi_212a01_ea40_electric_power
-
----
-
-# EnergyHub View of the House
-
-EnergyHub should reason about the house as an energy system rather than as a collection of individual devices.
+The current EnergyHub installation manages a three-floor country house. The model separates physical assets and capabilities from decision policy.
 
 ```text
-Solar Generation
-        ↓
-     Inverter
-        ↕
-Battery Storage
-        ↕
-   House Loads
-        ↕
-       Grid
+House Model = assets + sensors + controllable loads + capabilities
+Decision Policy = rules for using those capabilities
 ```
 
-Flexible household loads include:
+## Energy assets
+
+### Solar PV
+
+- LONGi Hi-MO X10 LR7-54HVH-490M panels;
+- Field 1: 7 × 490 W = 3.43 kWp, tilt 35°;
+- Field 2: 8 × 490 W = 3.92 kWp, tilt 65°;
+- approximate azimuth: 130°;
+- modeled total of the two documented fields: 7.35 kWp;
+- PI30MAX exposes reliable PV1 telemetry only;
+- Solcast supplies whole-system Today and Tomorrow forecasts.
+
+### Inverter
+
+- PowMr 10.2M;
+- PI30MAX;
+- USB-RS232;
+- Menu 01 and Menu 16 strategy control.
+
+### Battery
+
+- LiFePO4;
+- 16 kWh nominal capacity;
+- primary reserve and time-shifting buffer.
+
+### Grid
+
+- utility connection;
+- cheap night tariff;
+- voltage stabilizer before the inverter;
+- inverter normally sees approximately 220 V when the grid exists and 0 V when absent;
+- planned and unexpected outages are possible;
+- historical availability contributes to Grid Confidence.
+
+## Building and comfort
+
+### Basement
+
+- inverter and energy equipment;
+- water system;
+- 40 L electric boiler;
+- boiler heating from approximately 10°C to 70°C requires roughly 3 kWh and is a future flexible-load candidate.
+
+### 1st Floor
+
+| Capability | Entity |
+|---|---|
+| Temperature | `sensor.miaomiaoce_t2_e515_temperature` |
+| Humidity | `sensor.miaomiaoce_t2_e515_relative_humidity` |
+| Heat-pump plug | `switch.lumi_v1_64d7_switch` |
+| Heat-pump power | `sensor.lumi_v1_64d7_electric_power` |
+
+### 2nd Floor · Kids Room
+
+| Capability | Entity |
+|---|---|
+| Temperature | `sensor.miaomiaoce_t2_1bf2_temperature` |
+| Humidity | `sensor.miaomiaoce_t2_1bf2_relative_humidity` |
+| Heat-pump plug | planned hardware |
+
+The dashboard will add manual control after a compatible smart plug is installed.
+
+### 3rd Floor
+
+| Capability | Entity |
+|---|---|
+| Temperature | `sensor.lumi_weather_v1_b318_temperature` |
+| Humidity | `sensor.lumi_weather_v1_b318_relative_humidity` |
+| Heat-pump plug | `switch.chuangmi_212a01_ea40_switch` |
+| Heat-pump power | `sensor.chuangmi_212a01_ea40_electric_power` |
+| Auto-off duration | `input_number.input_number_floor3_heat_pump_timer_hours` |
+| Remaining time | `timer.floor_3_heat_pump_auto_off` |
+
+Duration `0 h` means manual mode: cancel the countdown but leave the heat pump in its current state. When a non-zero duration expires, HA switches the plug off and resets the duration to zero.
+
+## Current EnergyHub-controlled capability
+
+In 1.0 EnergyHub directly controls only inverter strategy. Heat-pump controls shown on the dashboard are Home Assistant household controls, not EnergyHub automatic strategy outputs.
+
+## Current strategies
+
+### Solar
 
 ```text
-Floor 1 Heat Pump
-Floor 2 Heat Pump
-Floor 3 Heat Pump
-Water Heating
-Future EV Charging
+Menu 01 = SBU
+Menu 16 = OSO
 ```
 
----
-
-# Current Strategy Model
-
-## Solar
-
-Default strategy.
+### Hybrid Charging
 
 ```text
-Setting 01 → SBU
-Setting 16 → OSO
+Menu 01 = SUB
+Menu 16 = SNU
+Target SOC = 80%
 ```
 
-The house prioritizes solar and battery energy according to inverter behavior.
-
-## Hybrid Charging
-
-Planned night-grid charging.
+### Hybrid Grid Hold
 
 ```text
-Setting 01 → SUB
-Setting 16 → SNU
-Target SOC → 80%
+Menu 01 = SUB
+Menu 16 = OSO
+Exit = 07:00 Solar request
 ```
 
-## Hybrid Grid Hold
-
-After the Hybrid charging target is reached:
+### Panic
 
 ```text
-Setting 01 → SUB
-Setting 16 → OSO
+Menu 01 = SUB
+Menu 16 = SNU
+Target SOC = 80% or 95%
 ```
 
-The house remains on cheap night grid power while preserving battery reserve until 07:00.
+## Removed experimental capability
 
-## Panic
+The old Away Mode first-floor heat-pump automation and helpers are not part of 1.0. They were removed because energy-to-comfort optimization should not depend on occupancy.
 
-Protective daytime charging when EnergyHub detects increased energy risk.
+## Future Smart Thermal Energy
 
-Current targets depend on Grid Confidence and Battery SOC.
+Smart Thermal will model thermal loads as capabilities:
 
-## Away
+- controllable plug;
+- measured or expected power;
+- room temperature/humidity;
+- heating/cooling role;
+- comfort band;
+- minimum runtime and cooldown;
+- ownership state;
+- load priority.
 
-Allows autonomous control of flexible household loads while the house is unoccupied.
+It may use:
 
-Current v1 implementation controls the first-floor heat pump.
-
----
-
-# Current Away Mode Model
-
-Start first-floor heating when:
-
-```text
-Away Mode ON
-Temperature < 18°C
-SOC > 95%
-PV > 200 W
-```
-
-Stop when:
-
-```text
-Temperature >= 23°C
-OR
-SOC <= 81%
-```
-
-After EnergyHub starts the heat pump, temporary PV fluctuations are ignored.
-
-Ownership helper:
-
-```text
-input_boolean.energyhub_away_heat_pump_active
-```
-
-EnergyHub may automatically stop the heat pump only when EnergyHub previously started it.
-
----
-
-# Energy Measurements
-
-Current measured or derived values include:
-
-- Battery SOC;
-- Battery Voltage;
-- Battery Charging Current;
-- Battery Discharging Current;
-- House Load;
-- PV1 Power;
-- Grid Voltage;
-- Grid Availability;
+- surplus solar;
+- cheap night electricity;
+- battery reserve;
+- forecast;
 - Grid Confidence;
-- Solar Forecast;
-- Daily House Consumption;
-- Daily Solar Surplus Estimated;
-- Grid Import Power Estimated;
-- Daily Grid Import Estimated.
+- seasonal comfort goals.
 
-Grid Import is estimated and is not billing-grade.
+## Flexible-load candidates
 
----
+- 1st-floor heat pump;
+- future 2nd-floor heat pump plug;
+- 3rd-floor heat pump;
+- electric boiler;
+- future EV charger.
 
-# Physical and Strategy Parameters
+## Measurements
 
-The house model distinguishes between technical limits and strategy settings.
+### Measured
 
-## Technical Limits
+- grid voltage/frequency;
+- output power/load;
+- battery SOC/voltage/current;
+- PV1 power/voltage/current;
+- inverter temperature;
+- floor temperatures/humidity;
+- selected smart-plug power.
 
-Examples:
+### Derived
 
-- battery manufacturer current limits;
-- inverter-supported current;
-- battery capacity;
-- inverter protocol capabilities.
+- grid availability and history;
+- Grid Confidence;
+- Daily Summary;
+- estimated solar surplus;
+- estimated Grid Import;
+- health states;
+- operating strategy and decision reason.
 
-## Strategy Parameters
+## Model principle
 
-Examples:
-
-- Hybrid target SOC;
-- Panic target SOC;
-- Away Mode SOC thresholds;
-- Away Mode temperature thresholds;
-- Away Mode PV threshold.
-
-Future EnergyHub versions should allow trusted strategy parameters to be configured without confusing them with hardware safety limits.
-
----
-
-# Model Principle
-
-The physical house changes slowly.
-
-Energy strategies evolve more quickly.
-
-Therefore:
-
-```text
-House Model
-=
-Physical Assets
-+
-Sensors
-+
-Controllable Loads
-+
-Energy Sources
-+
-Capabilities
-```
-
-while:
-
-```text
-Decision Policy
-=
-Rules for using those capabilities
-```
-
-The House Model should describe what exists.
-
-Decision services should decide what EnergyHub does with it.
+Physical assets change slowly. Policies change more quickly. Device entities should be mapped into stable capabilities, while strategy rules remain replaceable and configurable.

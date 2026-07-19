@@ -1,86 +1,102 @@
-# EnergyHub
+# EnergyHub Project
 
 ## What is EnergyHub?
 
-EnergyHub is an open-source operating system for autonomous homes.
+EnergyHub is a local Home Assistant add-on and decision system for residential solar, battery, grid, and flexible-load management.
 
-It transforms a collection of independent smart devices into one coordinated, intelligent system that continuously manages the home's energy ecosystem.
+The current installation uses:
 
-The goal is not simply to automate devices.
+- PowMr 10.2M inverter;
+- PI30MAX protocol over USB-RS232;
+- 16 kWh LiFePO4 battery;
+- Home Assistant OS on Raspberry Pi;
+- Mosquitto MQTT;
+- Solcast forecasts;
+- Home Assistant helpers, automations, scripts, dashboards, and smart plugs.
 
-The goal is to reduce the cognitive load of home ownership.
+## Why it exists
 
----
+The inverter exposes settings and telemetry, but it does not understand household intent. EnergyHub adds:
 
-## Why EnergyHub Exists
+- historical grid reliability;
+- forecast-aware strategy decisions;
+- emergency reserve protection;
+- persistent operating context;
+- explainable Home Assistant status;
+- a path toward smart thermal and other flexible loads.
 
-Modern homes are becoming increasingly complex.
+## Users
 
-Every new smart device adds another application, another dashboard, another notification and another decision.
+### Homeowners and families
 
-EnergyHub exists to reverse that trend.
+They need simple answers:
 
-Technology should simplify life—not make it more complicated.
+- What mode is active?
+- Is the grid available?
+- Is the battery reserve healthy?
+- Why did EnergyHub charge from the grid?
+- Is an action required?
 
----
+### Developers and advanced users
 
-## Who Is EnergyHub For?
+They need:
 
-### Homeowners
+- raw telemetry;
+- decision inputs and reasons;
+- controller state;
+- transition logs;
+- health and persistence details;
+- reproducible MQTT entity IDs;
+- versioned configuration.
 
-People who want their home to manage itself rather than constantly adjusting settings.
+### Installers and integrators
 
-### Families
+Future releases should allow strategy configuration without modifying Python code and should separate hardware capabilities from policy parameters.
 
-Simple dashboards, understandable modes and clear notifications without technical complexity.
+## Current product scope
 
-### Installers
+EnergyHub 1.0 controls one PowMr inverter and integrates one Home Assistant installation. It supports four strategy states:
 
-A platform that is easy to deploy, configure and maintain.
+- Solar;
+- Hybrid Charging;
+- Hybrid Grid Hold;
+- Panic.
 
-### Developers
+The former Away Mode prototype has been removed. Its useful idea is preserved as the future **Smart Thermal Energy** feature, which is not tied to occupancy.
 
-An open architecture that can be extended with new integrations, automations and optimization algorithms.
+## Current status
 
----
+Status as of 2026-07-19:
 
-## What Makes EnergyHub Different?
+- 1.0 feature work complete;
+- functional High-priority audit complete;
+- selected Medium corrections complete;
+- real 23:50 and midnight validation complete;
+- charts and dashboard redesigned;
+- project infographics created;
+- documentation audited;
+- release preparation still open.
 
-EnergyHub is built around a simple idea:
+## Product pillars
 
-> Every new feature should remove one more decision from the homeowner.
+1. **Autonomy** — normal decisions happen without manual inverter configuration.
+2. **Safety** — writes are bounded, verified where possible, and recoverable.
+3. **Explainability** — decisions and failures have visible reasons.
+4. **Local first** — core operation does not depend on a cloud control service.
+5. **Progressive capability** — vendor independence and broader HEMS functionality are directions, not false current claims.
+6. **Human outcomes** — strategy names and dashboards describe what the house is doing.
 
-Instead of adding complexity, EnergyHub continuously reduces it.
+## Non-goals for 1.0
 
----
+EnergyHub 1.0 is not:
 
-## Product Pillars
+- billing-grade metering;
+- a universal inverter driver;
+- an automatic inverter reboot system;
+- a full economic optimizer;
+- a complete thermal controller;
+- an external multi-user product with finished onboarding.
 
-- Autonomous Home
-- Human-Centric Automation
-- Progressive Automation
-- Explainable Decisions
-- Local First
-- Vendor Independence
-- Calm Technology
-- Invisible Automation
+## Long-term goal
 
----
-
-## Current Status
-
-Foundation (v0.1)
-
-Current focus:
-
-- Documentation
-- Core architecture
-- PowMr integration
-- Home Assistant platform
-- GitHub repository
-
----
-
-## Long-Term Goal
-
-Become the operating system for autonomous homes.
+EnergyHub should evolve from one-house automation into a capability-based Home Energy Management System that can coordinate generation, storage, tariffs, comfort, and flexible loads without losing local control or explainability.

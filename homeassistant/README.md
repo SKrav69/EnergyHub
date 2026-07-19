@@ -1,128 +1,104 @@
 # Home Assistant Configuration
 
-This directory stores the Home Assistant configuration used by EnergyHub.
+This directory contains the versioned Home Assistant part of EnergyHub.
 
-## Directory Structure
+For full behavior, see [`docs/12-HomeAssistant-Configuration.md`](../docs/12-HomeAssistant-Configuration.md).
+
+## Directory structure
 
 ```text
 homeassistant/
-└── live/
-    ├── config/
-    └── storage/
+  live/
+    config/
+      configuration.yaml
+      automations.yaml
+      scripts.yaml
+      scenes.yaml
+    storage/
+      input_boolean
+      input_number
+      timer
+      lovelace.dashboard_powmr1
+      lovelace_dashboards
+      lovelace_resources
 ```
 
-## `live/`
+## What is versioned
 
-The `live/` directory contains the current Home Assistant configuration synchronized directly from the Home Assistant instance.
+- EnergyHub YAML automations and scripts;
+- selected helpers;
+- the EnergyHub dashboard;
+- required dashboard resources.
 
-It is the source of truth for:
+## What is not versioned
 
-- automations
-- scripts
-- scenes
-- selected helpers
-- selected timers
-- the Solar / EnergyHub dashboard
-- Lovelace dashboard registration and resources
+- secrets;
+- entity registry exports;
+- recorder database;
+- tokens;
+- unrelated `.storage` state;
+- temporary backups.
 
-### `live/config/`
+## Current HA-owned functions
 
-Contains selected YAML configuration files copied from:
+- Autopilot helper;
+- Hybrid schedule at 23:50 and Solar restoration at 07:00;
+- live Solcast publication;
+- atomic Daily Summary publication;
+- manual Panic script;
+- transition notifications;
+- beacon;
+- third-floor heat-pump auto-off;
+- dashboard and floor controls.
 
-```text
-/config/
-```
+## Current EnergyHub-owned functions
 
-Current files:
+- telemetry and health;
+- history and Grid Confidence;
+- Hybrid/Panic decisions;
+- inverter transitions and verification;
+- Grid Import and Daily Summary persistence;
+- restart reconstruction;
+- MQTT state.
 
-- `automations.yaml`
-- `scripts.yaml`
-- `scenes.yaml`
-- `configuration.yaml`
-
-### `live/storage/`
-
-Contains explicitly approved Home Assistant storage files copied from:
-
-```text
-/config/.storage/
-```
-
-Current files:
-
-- `input_boolean`
-- `input_number`
-- `timer`
-- `lovelace.dashboard_powmr1`
-- `lovelace_dashboards`
-- `lovelace_resources`
-
-Only reviewed files are synchronized.
-
-The complete `.storage` directory must never be copied into the repository.
-
-## Synchronizing from Home Assistant
-
-After changing dashboards, charts, automations, scripts, helpers, or timers in Home Assistant, run:
+## Synchronize live HA to Git
 
 ```powershell
 .\tools\dev\sync-from-ha.ps1
 ```
 
-The script copies the approved Home Assistant files into `homeassistant/live/`.
+Review all changes before committing. Do not commit `core.entity_registry` or CSV exports created for audits.
 
-Then:
+## Synchronize Git to HA
 
-1. Review the synchronized changes in GitHub Desktop.
-2. Check that no secrets or private data were added.
-3. Commit the reviewed changes.
-4. Push the commit to GitHub.
+```powershell
+.\tools\dev\sync-to-ha.ps1
+```
 
-The synchronization script does not commit or push automatically.
+Reload the affected HA component or restart HA as directed.
 
-## Add-on Deployment
-
-Use:
+## Deploy add-on code
 
 ```powershell
 .\tools\dev\deploy-to-ha.ps1
 ```
 
-This script deploys the EnergyHub add-on code from the Windows repository to Home Assistant. It does not copy Home Assistant dashboards, automations, scripts, or helpers.
+Rebuild and restart the local EnergyHub add-on.
 
-## Development Workflow
+## Editing safety
 
-### EnergyHub Python code
+- Edit dashboards/helpers through HA UI where possible.
+- Do not overwrite live `.storage` files while HA is running.
+- Replace YAML files as complete files, then reload automations/scripts.
+- A conditional dashboard card displays all branches in edit mode; test the final view outside edit mode.
 
-```text
-Edit in VS Code
-→ deploy to Home Assistant
-→ rebuild & restart add-on
-→ test
-→ review in GitHub Desktop
-→ commit
-→ push
-```
+## Current dashboard dependencies
 
-### Home Assistant configuration
-
-```text
-Edit in Home Assistant
-→ run sync-from-ha.ps1
-→ review in GitHub Desktop
-→ commit
-→ push
-```
+- ApexCharts Card custom resource;
+- MQTT integration;
+- Solcast entities;
+- listed room sensors and smart plugs.
 
 ## Security
 
-Never commit secrets, authentication files, tokens, passwords, private URLs, Home Assistant databases, logs, or unreviewed `.storage` files.
-
-Review every synchronized file before committing because this repository is public.
-
-## Source of Truth
-
-- Windows Git repository → EnergyHub add-on source code
-- Running Home Assistant → Home Assistant configuration
-
-The synchronization scripts keep both represented in Git for version control, review, backup, and documentation.
+The repository must not contain real passwords or tokens. Published add-on defaults still require hardening before external release.
