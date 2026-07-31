@@ -1,2 +1,2 @@
-paho-mqtt
-mppsolar
+paho-mqtt==1.6.1
+mppsolar==0.16.56
