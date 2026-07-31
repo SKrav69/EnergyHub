@@ -16,8 +16,8 @@ options:
   powmr_enabled: true
   mqtt_host: core-mosquitto
   mqtt_port: 1883
-  mqtt_user: mqtt_powmr
-  mqtt_password: mqtt_powmr
+  mqtt_user: null
+  mqtt_password: null
   serial_port: /dev/ttyUSB0
   protocol: PI30MAX
   command: QPIGS
