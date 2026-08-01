@@ -456,18 +456,26 @@ def publish_inverter_health_discovery(client):
             None,
             None,
         ),
-        "inverter_warning_raw": (
-            "Inverter Warning Raw",
-            None,
-            None,
-            None,
-        ),
     }
 
     _publish_sensor_discovery(
         client,
         device,
         sensors,
+    )
+
+    # Remove the obsolete retained MQTT Discovery entity and its
+    # retained state from installations upgraded from an earlier build.
+    client.publish(
+        "homeassistant/sensor/"
+        "energyhub_inverter_warning_raw/config",
+        b"",
+        retain=True,
+    )
+    client.publish(
+        f"{BASE_TOPIC}/inverter_warning_raw/state",
+        b"",
+        retain=True,
     )
 
     log("Inverter Health MQTT discovery published")
@@ -646,6 +654,7 @@ def _publish_sensor_discovery(client, device, sensors):
             retain=True,
         )
 
+
 def publish_operating_mode(client, inverter_controller):
     for key, value in inverter_controller.mqtt_values().items():
         client.publish(
@@ -680,6 +689,7 @@ def publish_operating_mode_discovery(client):
     )
 
     log("Operating Mode MQTT discovery published")
+
 
 def publish_panic_decision(client, panic_decision):
     for key, value in panic_decision.mqtt_values().items():

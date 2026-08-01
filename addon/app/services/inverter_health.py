@@ -8,16 +8,12 @@ class InverterHealthMonitor:
     def __init__(self):
         self.status = "unknown"
         self.reason = "not_checked"
-        self.warning_raw = "unknown"
 
     def update(self, data):
         if not data:
             self.status = "warning"
             self.reason = "warning_read_failed"
-            self.warning_raw = "unknown"
             return
-
-        self.warning_raw = str(data)
 
         active = []
 
@@ -43,5 +39,4 @@ class InverterHealthMonitor:
         return {
             "inverter_health": self.status,
             "inverter_health_reason": self.reason,
-            "inverter_warning_raw": self.warning_raw,
         }
