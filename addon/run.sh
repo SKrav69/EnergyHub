@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
+
 set -e
 
 echo "[Energy Hub] Starting..."
-echo "[Energy Hub] Version 1.0.0"
+echo "[Energy Hub] Version ${ENERGYHUB_VERSION:-unknown}"
 
-cd /app
-python3 publisher.py
+exec python3 /app/publisher.py

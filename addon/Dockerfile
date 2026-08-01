@@ -3,6 +3,8 @@ FROM python:3.11-alpine
 ARG BUILD_VERSION
 ARG BUILD_ARCH
 
+ENV ENERGYHUB_VERSION="${BUILD_VERSION}"
+
 LABEL \
     io.hass.version="${BUILD_VERSION}" \
     io.hass.type="app" \
