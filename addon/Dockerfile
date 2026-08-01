@@ -19,6 +19,8 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
+RUN python3 -m unittest discover -s tests -v
+
 RUN chmod +x /app/run.sh
 
 CMD ["/bin/bash", "/app/run.sh"]
