@@ -1,91 +1,80 @@
 # Changelog
 
-This changelog records material product and architecture changes. Git history remains the detailed implementation record.
+All notable EnergyHub changes are recorded here.
 
-## 2026-07-19 — 1.0 hardening, validation and dashboard redesign
+## [Unreleased]
 
-### Validated
+No unreleased changes yet.
 
-- Hybrid was evaluated automatically at 23:50 and selected Solar when forecast conditions were sufficient.
-- Midnight Grid Import rollover completed successfully:
-  - completed-day value created;
-  - Daily Summary finalization queued;
-  - existing identical value recognized idempotently;
-  - finalization hand-off acknowledged.
-- Telemetry remained fresh after the unchanged-load warning correction.
-- Atomic persistence produced no residual temporary files.
-- Raw telemetry persistence updated approximately once per minute rather than every poll.
-- Grid Import persistence remained unchanged while Solar was active.
+## [1.0.2] - 2026-08-01
+
+First release-ready EnergyHub 1.0 build.
+
+### Added
+
+- Solar, Hybrid Charging, Hybrid Grid Hold, and Panic operating strategies.
+- Explainable Hybrid and Panic decision services.
+- Verified PowMr Menu 01 control with QPIRI read-back.
+- ACK-confirmed and persisted Menu 16 control.
+- Startup strategy reconstruction without unnecessary inverter writes.
+- Communication, Battery, Telemetry Freshness, Inverter, and System Health monitoring.
+- QPIWS warning and fault polling.
+- Rolling Grid History, Grid Availability, and weighted Grid Confidence.
+- Persistent Daily Summary and mode-aware Grid Import estimation.
+- MQTT Discovery for EnergyHub and PowMr entities.
+- Home Assistant Autopilot, schedules, manual Panic control, notifications, dashboards, and selected configuration synchronization.
+- Executable release tests for decision boundaries, telemetry freshness, restart reconstruction, transition sequencing, and recovery behavior.
+- Docker build test gate using `python3 -m unittest discover -s tests -v`.
+- Installation, upgrade, app-store, release, project-state, roadmap, and Home Assistant integration documentation.
 
 ### Changed
 
-- Removed the experimental Away Mode automation, helpers, and dashboard control from 1.0.
-- Reframed the future feature as **Smart Thermal Energy**, independent of occupancy.
-- Stabilized MQTT entity IDs with explicit `default_entity_id` values.
-- Renamed the finalized daily chart entity to `sensor.energyhub_daily_summary_grid_import`.
-- Removed the only unwanted `_2` EnergyHub entity from the Home Assistant registry by preserving its unique ID and renaming the entity ID.
-- Separated telemetry freshness from unchanged house-load diagnostics.
-- Automatic Hybrid and Panic activation notifications are now published only after a successful transition.
-- Failed automatic transitions publish explicit failure notifications.
-- Manual Panic now explains when it is blocked because Autopilot is disabled.
-- Added shared atomic JSON persistence with durable replacement.
-- Throttled raw telemetry and incremental Grid Import writes to reduce SD-card wear.
-- Corrected third-floor heat-pump manual mode: duration `0 h` cancels an active countdown without switching the heat pump off.
-
-### Dashboard
-
-- Redesigned the 24-hour Solar, Load & Battery chart.
-- Redesigned the 7-day Energy Balance chart.
-- Redesigned the 24-hour Inverter Load & Temperature chart.
-- Added a clear Modes & Controls section.
-- Added family-readable EnergyHub Status and Decision Logic sections.
-- Added consistent 1st, 2nd, and 3rd floor comfort cards.
-- Added one conditional Grid Online/Grid Offline tile with real voltage.
-- Added two project infographics:
-  - simple Autopilot logic;
-  - detailed technical architecture.
-
-## 2026-07-18 — High-priority audit closure
+- Pinned tested Python dependencies:
+  - `paho-mqtt==1.6.1`;
+  - `mppsolar==0.16.56`.
+- Replaced weak public MQTT credential defaults with blank values that must be configured by the installer.
+- Changed serial access from unstable `/dev/ttyUSB*` numbering to a configurable persistent `/dev/serial/by-id/...` path.
+- Enabled app access to UART and udev device information.
+- Made the startup banner use the Home Assistant build version instead of a hard-coded string.
+- Removed the experimental Away Mode runtime from EnergyHub 1.0 and deferred the broader concept to Smart Thermal Energy.
+- Removed obsolete MQTT Discovery/state for the raw inverter warning sensor.
+- Standardized Daily Summary Grid Import naming as `sensor.energyhub_daily_summary_grid_import`.
+- Clarified that Menu 16 is ACK-confirmed but cannot be independently read back on the current inverter.
+- Clarified that Grid Import is informational and not billing-grade.
 
 ### Fixed
 
-- System Health now aggregates the actual Communication Health state.
-- Raw inverter availability and EnergyHub diagnostic availability use separate topics.
-- Solcast Today and Tomorrow forecasts are synchronized live for decisions.
-- Daily Summary is created from one atomic JSON snapshot instead of sequential retained values.
-- Failed Hybrid Grid Hold transitions make one bounded Solar recovery attempt.
-- Safe Solar requests have priority over ordinary queued mode requests.
-- Add-on restart reconstructs strategy from actual Menu 01, remembered ACK-confirmed Menu 16, and persisted context.
-- Grid Import final values are reconciled into the previous day's Daily Summary after midnight.
-- Obsolete Away Mode runtime implementation was removed.
-- Grid Import MQTT naming and Home Assistant entity IDs were clarified.
+- App startup after USB device numbering changes.
+- Serial permission/access behavior after Home Assistant restarts.
+- Packaging path mismatch between `/publisher.py` and `/app/publisher.py`.
+- Hard-coded `1.0.0` startup banner in later 1.0.x builds.
+- False Telemetry Freshness warnings caused by unchanged but valid house-load telemetry.
+- Startup ambiguity and unnecessary inverter writes during consistent Solar reconstruction.
+- Partial Hybrid transition recovery back to Solar.
+- Stale Daily Summary snapshot handling across date boundaries.
+- Invalid raw inverter warning MQTT entity publication.
 
-### Accepted or deferred
+### Validation
 
-- Menu 16 cannot be independently read back on the current inverter.
-- General SOC/telemetry anomaly handling remains a later 1.x task.
-- The 07:00 Solar request still depends on Home Assistant and belongs to 1.3 resilience work.
-- Broad `main.py` refactoring remains deferred until executable tests exist.
+- Rebuilt successfully on Home Assistant OS for `linux/arm64`.
+- All 24 release tests passed during the Docker image build.
+- Live telemetry and MQTT Discovery validated after rebuild.
+- Full Home Assistant host restart validated with both the inverter FTDI adapter and a SONOFF Zigbee coordinator connected.
+- Solar mode reconstructed from actual Menu 01 plus persisted Menu 16 without inverter writes.
 
-## 2026-07-17 — Full project review
+### Known limitations
 
-- Completed a repository-wide architecture, code, MQTT, entity, dashboard, documentation, startup, rollover, and recovery audit.
-- Classified findings by severity and implemented all functional High-priority corrections.
-- Selected and completed the Medium corrections that materially improved 1.0 without risky restructuring.
+- `aarch64` only in 1.0.2.
+- Current hardware support is PowMr 10.2M / PI30MAX.
+- No PV2 or output-2 telemetry.
+- Menu 16 cannot be read back.
+- Grid Import is estimated and may be affected by simultaneous daytime PV.
+- Strategy parameters are still code/configuration constants.
+- The 07:00 return to Solar depends on Home Assistant scheduling.
+- General telemetry quarantine, direct BMS integration, and bounded recovery services are future work.
 
-See [Project Review Resolution](docs/ProjectReview-17-07.md).
+## [0.1] - 2026-06
 
-## 2026-07-13 to 2026-07-14 — EnergyHub 1.0 feature completion
+### Added
 
-- Implemented real inverter strategy control for Solar, Hybrid Charging, Hybrid Grid Hold, and Panic.
-- Added Autopilot, manual Panic, strategy explanations, and notifications.
-- Added Grid Import estimation and daily energy records.
-- Added Home Assistant dashboards, beacon logic, and versioned configuration workflow.
-- Declared feature development complete and moved into test drive and hardening.
-
-## June to early July 2026 — Foundation
-
-- Created the Home Assistant add-on and local PI30MAX adapter.
-- Added MQTT Discovery and stable telemetry entities.
-- Added Communication Watchdog, Grid History, Grid Confidence, Daily Summary, Battery Health, Telemetry Freshness, Inverter Health, and System Health.
-- Established the responsibility boundary between Home Assistant, decision services, `main.py`, and Inverter Controller.
+- Project philosophy, manifesto, vision, design principles, initial architecture, roadmap, backlog, and repository structure.

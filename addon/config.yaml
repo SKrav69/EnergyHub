@@ -1,7 +1,8 @@
 name: Energy Hub
 version: "1.0.2"
 slug: energy_hub
-description: Home Energy Hub for PowMr, JK BMS, EV and future automations
+description: Local home energy management for PowMr PI30MAX and Home Assistant
+url: https://github.com/SKrav69/EnergyHub
 
 arch:
   - aarch64
@@ -23,7 +24,7 @@ options:
   mqtt_port: 1883
   mqtt_user: null
   mqtt_password: null
-  serial_port: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_A02JN49D-if00-port0
+  serial_port: /dev/serial/by-id/REPLACE_WITH_YOUR_FTDI_DEVICE_ID
   protocol: PI30MAX
   command: QPIGS
   poll_interval: 10

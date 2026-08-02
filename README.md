@@ -1,14 +1,14 @@
 # EnergyHub 1.0 — Autonomous Home
 
-EnergyHub is a local-first Home Assistant add-on that turns a PowMr 10.2M inverter, a 16 kWh battery, solar forecasts, grid history, and Home Assistant inputs into an explainable household energy strategy.
+EnergyHub is a local-first Home Assistant app that turns a PowMr 10.2M inverter, a 16 kWh battery, solar forecasts, grid history, and Home Assistant inputs into an explainable household energy strategy.
 
-The current codebase is a **1.0 release candidate in real-system test drive**. Feature development is complete. The functional High-priority audit and the selected Medium-priority corrections were completed and validated on the live installation in July 2026. Release closure still includes automated tests, dependency pinning, credential hardening, installation documentation, and final repository cleanup.
+**EnergyHub 1.0.2 is the first release-ready build of EnergyHub 1.0.**
 
-![How EnergyHub Autopilot works](docs/Images/Infographic%231_logic.png)
+Feature development, the functional audit, dependency pinning, credential hardening, executable release tests, persistent USB serial access, packaging validation, and live restart testing have been completed.
 
-The detailed architecture is available in [System Architecture](docs/05-System-Architecture.md) and [Developer Architecture](docs/10-Developer-Architecture.md).
+The remaining release step is creation and publication of the `v1.0.2` tag and GitHub release.
 
-![EnergyHub technical architecture](docs/Images/Infographic%232_details.jpg)
+See [Installation and Upgrade](docs/INSTALLATION.md), [System Architecture](docs/05-System-Architecture.md), and [Developer Architecture](docs/10-Developer-Architecture.md).
 
 ## What EnergyHub does
 
@@ -17,26 +17,39 @@ EnergyHub:
 - polls PowMr PI30MAX telemetry over local USB-RS232;
 - publishes stable Home Assistant entities through MQTT Discovery;
 - tracks grid availability over rolling 24-hour and 48-hour windows;
-- derives a Grid Confidence state;
+- derives a weighted Grid Confidence state;
 - evaluates a nightly Hybrid strategy from battery SOC, current consumption, and tomorrow's solar forecast;
-- evaluates daytime Panic reserve protection from Grid Confidence, battery SOC, and the live solar forecast;
+- evaluates daytime Panic reserve protection from Grid Confidence, battery SOC, and forecast sufficiency;
 - executes verified inverter setting changes through one Inverter Controller;
 - explains decisions and transition failures in Home Assistant;
-- estimates Grid Import when the inverter is intentionally operating in SUB;
+- estimates Grid Import during intentionally grid-prioritized SUB strategies;
 - stores restart-critical state atomically on local disk;
-- reconstructs the operating strategy after an add-on restart;
+- reconstructs the operating strategy after an app restart;
 - returns to Solar safely when Autopilot is disabled during an active automatic strategy.
+
+## Supported release platform
+
+EnergyHub 1.0.2 currently targets:
+
+- Home Assistant OS with Supervisor/Apps;
+- `aarch64` hardware, validated on Raspberry Pi 4;
+- PowMr 10.2M using PI30MAX;
+- an FTDI USB-RS232 adapter exposed through `/dev/serial/by-id/...`;
+- Mosquitto MQTT broker;
+- Home Assistant as the UI, scheduling, integration, and notification layer.
+
+The architecture is designed to become more configurable and vendor-independent in later releases, but 1.0.2 is intentionally hardware-specific.
 
 ## Operating strategies
 
 | Strategy | Menu 01 | Menu 16 | Purpose |
-|---|---:|---:|---|
-| **Solar** | SBU | OSO | Default. Use solar and battery first. |
-| **Hybrid Charging** | SUB | SNU | Charge from the cheap night tariff to 80% SOC. |
-| **Hybrid Grid Hold** | SUB | OSO | After 80%, preserve the battery and keep the house on grid until 07:00. |
-| **Panic** | SUB | SNU | Build daytime emergency reserve to 80% or 95%, depending on Grid Confidence. |
+|---|---|---|---|
+| Solar | SBU | OSO | Default: use solar and battery first. |
+| Hybrid Charging | SUB | SNU | Charge from the cheap night tariff to 80% SOC. |
+| Hybrid Grid Hold | SUB | OSO | Preserve the charged battery and keep the house on night grid power until 07:00. |
+| Panic | SUB | SNU | Build daytime emergency reserve to 80% or 95%, depending on Grid Confidence. |
 
-Menu 01 is written and independently read back through QPIRI. Menu 16 has no supported read-back command on this inverter; EnergyHub therefore stores the last **ACK-confirmed** value and never describes it as independently verified.
+Menu 01 is written and independently read back through QPIRI. Menu 16 has no supported read-back command on this inverter; EnergyHub stores the last ACK-confirmed value and never describes it as independently verified.
 
 ## Autopilot logic
 
@@ -51,7 +64,7 @@ Menu 16 = OSO
 
 ### Hybrid
 
-At 23:50 Home Assistant requests a Hybrid evaluation. EnergyHub compares tomorrow's live Solcast forecast with:
+At 23:50, Home Assistant requests a Hybrid evaluation. EnergyHub compares tomorrow's live solar forecast with:
 
 ```text
 required energy
@@ -65,13 +78,13 @@ If the forecast is insufficient, EnergyHub enters Hybrid Charging. At 80% SOC it
 
 Between 12:00 and 23:50, EnergyHub reevaluates automatic Panic every 15 minutes while Solar is active.
 
-- **Unstable grid:** if SOC is below 50% and today's forecast is below yesterday's consumption plus 20%, charge to 80%.
-- **Risk or panic grid:** if SOC is below 80% and today's forecast is below yesterday's consumption plus 20%, charge to 95%.
-- **Normal grid:** no automatic Panic.
+- Unstable grid: SOC below 50% and forecast below yesterday's consumption plus 20% → charge to 80%.
+- Risk or panic grid: SOC below 80% and forecast below yesterday's consumption plus 20% → charge to 95%.
+- Normal grid: no automatic Panic.
 
-The current implementation uses Grid Confidence, SOC, and forecast sufficiency. A separate live-PV threshold is not part of the current code and remains a policy-review item for a later test-drive release.
+A separate live-PV threshold is not part of the current Panic implementation.
 
-Manual Panic uses a 95% target and requires Autopilot to be enabled. When Autopilot is off, Home Assistant shows a clear notification instead of silently ignoring the request.
+Manual Panic uses a 95% target and requires Autopilot to be enabled. When Autopilot is off, Home Assistant shows a clear notification rather than silently ignoring the request.
 
 ## Decision and execution boundary
 
@@ -101,7 +114,7 @@ EnergyHub stores grid up/down transitions for 48 hours and calculates:
 - weighted Grid Confidence from 24-hour and 48-hour availability.
 
 | Weighted availability | Grid Confidence |
-|---:|---|
+|---|---|
 | 90% or more | normal |
 | 60–89.9% | unstable |
 | 30–59.9% | risk |
@@ -117,25 +130,23 @@ estimated import
 + positive battery SOC gain × 16 kWh
 ```
 
-The live entities are:
+Current entities:
 
 - `sensor.energyhub_grid_import_power_estimated` — current grid-supplied house power estimate;
 - `sensor.energyhub_daily_grid_import_estimated` — current-day accumulated estimate;
 - `sensor.energyhub_grid_import_yesterday_estimated` — completed previous day;
 - `sensor.energyhub_daily_summary_grid_import` — finalized Daily Summary value for charts.
 
-The midnight hand-off is persistent and idempotent. A completed day is queued by Grid Import, reconciled into Daily Summary, and acknowledged only after reconciliation.
+The result is informational and not billing-grade. Daytime simultaneous PV may affect accuracy and remains a 1.1 refinement area.
 
 ## Health and availability
 
-EnergyHub separates two kinds of availability:
+EnergyHub separates two availability layers:
 
 - `energyhub/status` — the EnergyHub process and diagnostic intelligence;
 - `powmr/status` — valid raw inverter telemetry.
 
-This allows communication, health, and decision entities to remain visible when the serial cable or inverter telemetry fails.
-
-Current health services include:
+Current health services:
 
 - Communication Watchdog;
 - Battery Health;
@@ -143,21 +154,21 @@ Current health services include:
 - Inverter Health from QPIWS;
 - System Health aggregation.
 
-Telemetry Freshness depends on the age of valid telemetry. An unchanged house load is retained as diagnostic information but no longer creates a false warning.
+Telemetry Freshness depends on the age of valid telemetry. An unchanged house load is retained as diagnostic information but does not create a false warning.
 
 ## Persistence and restart reconstruction
 
-The following files are stored under the add-on `/data` directory:
+The following files are stored under the app `/data` directory:
 
 | File | Purpose |
 |---|---|
-| `grid_history.json` | rolling grid transition history |
-| `grid_import.json` | current-day import, previous day, SUB interval, pending finalizations |
-| `daily_summary.json` | daily snapshots and finalized values |
-| `inverter_controller_state.json` | last confirmed strategy, ACK-confirmed Menu 16, Panic target |
-| `energy_hub_powmr_last.json` | latest valid raw telemetry snapshot |
+| `grid_history.json` | Rolling grid transition history |
+| `grid_import.json` | Current-day import, previous day, SUB interval, pending finalizations |
+| `daily_summary.json` | Daily snapshots and finalized values |
+| `inverter_controller_state.json` | Last confirmed strategy, ACK-confirmed Menu 16, Panic target |
+| `energy_hub_powmr_last.json` | Latest valid raw telemetry snapshot |
 
-Writes use temporary files, `fsync`, and atomic replacement. Incremental telemetry and Grid Import persistence are throttled to reduce SD-card writes; important transitions are persisted immediately.
+Writes use temporary files, `fsync`, and atomic replacement. Incremental telemetry and Grid Import persistence are throttled to reduce storage writes; important transitions are persisted immediately.
 
 At startup, EnergyHub combines:
 
@@ -173,12 +184,12 @@ Home Assistant owns:
 
 - the Autopilot helper;
 - the 23:50 Hybrid and 07:00 Solar schedule;
-- Solcast input publication;
+- solar forecast input publication;
 - the atomic 23:51 Daily Summary snapshot;
 - the manual Panic script;
 - persistent notifications;
 - the EnergyHub beacon;
-- floor comfort controls and the third-floor auto-off timer;
+- household comfort controls and the third-floor auto-off timer;
 - dashboards and charts.
 
 EnergyHub owns:
@@ -193,90 +204,76 @@ EnergyHub owns:
 
 See [Home Assistant Configuration](docs/12-HomeAssistant-Configuration.md).
 
-## Dashboard
+## Development and release validation
 
-The current dashboard contains:
-
-1. **Solar, Load & Battery — 24h**
-2. **Energy Balance — 7 days**
-3. **Inverter Load & Temperature — 24h**
-4. **Modes & Controls**
-5. **EnergyHub Status**
-6. **EnergyHub Decision Logic**
-7. **1st Floor**
-8. **2nd Floor · Kids Room**
-9. **3rd Floor**, including manual auto-off duration and remaining time
-
-The planned Smart Thermal control is shown as a future 1.5 capability, not as a fake active switch.
-
-## Development workflow
+The Docker image build runs executable standard-library unit tests:
 
 ```text
-Edit in Git
-→ deploy/rebuild add-on
-→ test on the real inverter
-→ edit HA through the UI where appropriate
-→ sync HA configuration back to Git
-→ review in GitHub Desktop
-→ commit one coherent change
+python3 -m unittest discover -s tests -v
 ```
 
-Useful scripts:
+The 1.0.2 release build validates:
 
-```powershell
-.\tools\dev\sync-to-ha.ps1
-.\tools\dev\sync-from-ha.ps1
-.\tools\dev\deploy-to-ha.ps1
-```
+- Hybrid decision branches;
+- Panic thresholds and evaluation window;
+- Grid Confidence boundaries;
+- telemetry freshness;
+- restart strategy reconstruction;
+- verified inverter transition sequencing;
+- safe Solar recovery after a partial transition failure.
 
-The repository is the project source of truth. Home Assistant remains the runtime source of truth for the live installation.
+Live validation completed on 2026-08-01 included a full Home Assistant host restart with both the inverter FTDI adapter and a SONOFF Zigbee coordinator connected. EnergyHub resumed through the persistent FTDI `by-id` path and reconstructed Solar without unnecessary inverter writes.
 
 ## Project structure
 
 ```text
 addon/
-  app/
-    adapters/      PowMr/mpp-solar boundary
-    models/        normalized state objects
-    mqtt/          Discovery, state and event publishing
-    services/      decisions, health, history, control and persistence
-    utils/         atomic JSON storage and logging
-  config.yaml
-  Dockerfile
-  requirements.txt
-  run.sh
+  app/             EnergyHub runtime
+  tests/           executable release tests
+  config.yaml      Home Assistant app manifest and defaults
+  Dockerfile       image build and test gate
+  DOCS.md          app-store documentation
+  CHANGELOG.md     app-specific release notes
+  requirements.txt pinned Python dependencies
+  run.sh           container entry point
 
 homeassistant/
-  live/config/     YAML automations, scripts and configuration
-  live/storage/    selected versioned HA storage objects
-  README.md
+  live/config/     selected synchronized YAML
+  live/storage/    selected synchronized Home Assistant objects
 
 docs/
-  product, architecture, decision, recovery and hardware documentation
+  product, architecture, installation, decision, recovery, and hardware docs
 
 tools/dev/
   deployment and synchronization scripts
 ```
 
-## Current release blockers
+The Git repository is the project source of truth. The live Home Assistant installation remains the runtime source of truth for synchronized Home Assistant configuration.
 
-Before presenting 1.0 as an external release rather than a personal release candidate:
+## Release status
 
-- add executable automated tests for pure services and transition behavior;
-- pin the tested Python dependency versions;
-- remove weak default MQTT credentials from published defaults;
-- finish installation and upgrade instructions;
-- remove placeholder dashboard section titles;
-- validate daytime SUB Grid Import behavior during real Panic operation;
-- complete final repository and packaging checks.
+Completed for EnergyHub 1.0.2:
+
+- functional High-priority audit;
+- selected Medium-priority corrections;
+- pinned Python dependencies;
+- public-safe MQTT credential defaults;
+- persistent FTDI serial access through `/dev/serial/by-id`;
+- executable release tests during the Docker image build;
+- Home Assistant rebuild validation;
+- restart validation with the inverter adapter and Zigbee coordinator connected;
+- startup strategy reconstruction without unnecessary inverter writes;
+- installation, upgrade, project-state, roadmap, and release documentation.
+
+The codebase is ready for the `v1.0.2` tag and public GitHub release.
 
 ## Roadmap
 
-- **1.0 — Autonomous Home:** current release-candidate milestone.
-- **1.1 — Test-drive and telemetry robustness:** real-world corrections, Grid Import refinement, general anomaly handling, flexible-load groundwork.
-- **1.2 — Configurable EnergyHub:** strategy parameters and profiles.
+- **1.0 — Autonomous Home:** release-ready milestone, packaged as 1.0.2.
+- **1.1 — Test-drive and Telemetry Robustness:** real-world corrections, Grid Import refinement, anomaly handling, flexible-load groundwork.
+- **1.2 — Configurable EnergyHub:** strategy parameters, profiles, and safe hardware-aware bounds.
 - **1.3 — Recovery & Resilience:** bounded recovery for MQTT, network, serial, `mpp-solar`, and Home Assistant outages.
-- **1.4 — Remote Access & Telegram:** secure remote Home Assistant access, status, alerts, and commands.
+- **1.4 — Remote Access & Telegram:** secure remote access, status, alerts, and commands.
 - **1.5 — Smart Thermal Energy:** use surplus solar or cheap-tariff electricity for heating and cooling, independent of occupancy.
 - **2.x — Energy Optimization:** broader economic and multi-vendor optimization.
 - **3.x — Full HEMS:** whole-home energy management.
@@ -288,13 +285,14 @@ See [Roadmap](docs/06-Roadmap.md) and [Backlog](docs/07-Backlog.md).
 - Manual control remains available.
 - Autopilot is the master permission for automatic inverter strategy changes.
 - EnergyHub does not automatically restart the inverter.
-- Automatic recovery is bounded and observable.
+- Automatic recovery must remain bounded and observable.
 - Menu 16 is described as ACK-confirmed, not read-back verified.
 - Grid Import is informational and not billing-grade.
 - Future flexible-load logic must stop only loads that EnergyHub started.
 
 ## Documentation index
 
+- [Installation and Upgrade](docs/INSTALLATION.md)
 - [Project](docs/01-Project.md)
 - [System Architecture](docs/05-System-Architecture.md)
 - [Roadmap](docs/06-Roadmap.md)
@@ -307,4 +305,5 @@ See [Roadmap](docs/06-Roadmap.md) and [Backlog](docs/07-Backlog.md).
 - [Decision Engine](docs/DECISION_ENGINE.md)
 - [Current Project State](docs/PROJECT_STATE.md)
 - [Project History](docs/PROJECT_HISTORY.md)
-- [PowMr Verified Commands](docs/hardware/powmr-10-2m-verified-commands.md)
+- [PowMr Verified Commands](docs/hardware/POWMR_VERIFIED_COMMANDS.md)
+- [Release Notes 1.0.2](RELEASE_NOTES_1.0.2.md)
